@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="Votaciones.Api/Votaciones.Api.csproj" />
+  <Project Path="Votaciones.Application/Votaciones.Application.csproj" />
+  <Project Path="Votaciones.Domain/Votaciones.Domain.csproj" />
+  <Project Path="Votaciones.Infrastructure/Votaciones.Infrastructure.csproj" Id="a2b485a9-0229-434f-a419-ad93410210f5" />
+</Solution>
