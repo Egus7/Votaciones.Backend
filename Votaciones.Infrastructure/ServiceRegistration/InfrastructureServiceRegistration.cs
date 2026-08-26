@@ -16,6 +16,8 @@ namespace Votaciones.Infrastructure.ServiceRegistration
             services.AddScoped<IEleccionRepository, EleccionRepository>();
             services.AddScoped<ICandidatoRepository, CandidatoRepository>();
             services.AddScoped<IMesaElectoralRepository, MesaElectoralRepository>();
+            services.AddScoped<IActaRepository, ActaRepository>();
+            services.AddScoped<IResultadoRepository, ResultadoRepository>();
 
             //Service (unidad de trabajo)
             services.AddScoped<IUnitOfWork, UnitOfWork>();

@@ -10,11 +10,17 @@ namespace Votaciones.Domain.Models
     {
         [Key]
         public Guid IdMesaElectoral { get; set; }
-        public Guid EleccionId { get; set; }
 
+        public Guid EleccionId { get; set; }
         [ForeignKey(nameof(EleccionId))]
         [JsonIgnore]
         public Eleccion? Eleccion { get; set; }
+
+        public Guid ZonaId { get; set; }
+        [ForeignKey(nameof(ZonaId))]
+        [JsonIgnore]
+        public Zona? Zona { get; set; }
+
         [Required]
         [MaxLength(20)]
         public string CodigoMesa { get; set; } = string.Empty;

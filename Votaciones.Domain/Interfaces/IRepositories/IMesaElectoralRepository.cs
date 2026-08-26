@@ -4,10 +4,10 @@ namespace Votaciones.Domain.Interfaces.IRepositories
 {
     public interface IMesaElectoralRepository
     {
-        Task<(IEnumerable<MesaElectoral> Items, int TotalRegistros)> ObtenerPaginacionAsync(int pagina, int pageSize);
+        IQueryable<MesaElectoral> ObtenerQuery();
         Task<MesaElectoral?> ObtenerPorIdAsync(Guid id);
-        Task<MesaElectoral?> ObtenerPorCodigoMesaByEleccionAsync(string codigoMesa, Guid eleccionId, Guid? idMesaExcluir = null);
-        Task<IEnumerable<MesaElectoral>> ObtenerPorEleccionAsync(Guid eleccionId);
+        Task<MesaElectoral?> ObtenerPorCodigoMesaByEleccionAsync(string codigoMesa, Guid eleccionId, Guid zonaId, Guid? idMesaExcluir = null);
+        Task<Zona?> ObtenerZonaAsync(Guid zonaId);
         Task AgregarAsync(MesaElectoral mesaElectoral);
     }
 }

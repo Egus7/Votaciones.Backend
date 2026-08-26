@@ -38,5 +38,17 @@ namespace Votaciones.Application.Helpers.Audit
             };
         }
 
+        public static class CamposAuditablesActa
+        {
+            public static readonly string[] Campos =
+            {
+                nameof(ActaEleccion.FechaRegistro),
+                nameof(ActaEleccion.VotosBlancos),
+                nameof(ActaEleccion.VotosNulos),
+                nameof(ActaEleccion.TotalVotos),
+                nameof(ActaEleccion.Estado)
+            };
+        }
+
     }
 }

@@ -13,37 +13,24 @@ namespace Votaciones.Infrastructure.Persistence.Repositories
             _context = context;
         }
 
-        public async Task<(IEnumerable<MesaElectoral> Items, int TotalRegistros)> ObtenerPaginacionAsync(int pagina, int pageSize)
+        public IQueryable<MesaElectoral> ObtenerQuery()
         {
-            var query = _context.MesasElectorales.AsNoTracking();
-
-            // Conteo de total registros
-            var totalRegistros = await query.CountAsync();
-
-            // Consulta de paginacion 
-            var items = await query
-                .OrderBy(m => m.CodigoMesa)
-                .Skip((pagina -1) * pageSize)
-                .Take(pageSize)
-                .AsQueryable()
-                .ToListAsync();
-
-            return (items, totalRegistros);
+            return _context.MesasElectorales.AsNoTracking();
         }
+
         public async Task<MesaElectoral?> ObtenerPorIdAsync(Guid id)
         {
             return await _context.MesasElectorales.FirstOrDefaultAsync(x => x.IdMesaElectoral == id);
         }
-        public async Task<MesaElectoral?> ObtenerPorCodigoMesaByEleccionAsync(string codigoMesa, Guid eleccionId, Guid? idMesaExcluir = null)
+        public async Task<MesaElectoral?> ObtenerPorCodigoMesaByEleccionAsync(string codigoMesa, Guid eleccionId, Guid zonaId, Guid? idMesaExcluir = null)
         {
             return await _context.MesasElectorales.AsNoTracking() // Recomendado para consultas de lectura/validación
-                .Where(m => m.CodigoMesa == codigoMesa && m.EleccionId == eleccionId 
+                .Where(m => m.CodigoMesa == codigoMesa && m.EleccionId == eleccionId && m.ZonaId == zonaId
                     && (!idMesaExcluir.HasValue || m.IdMesaElectoral != idMesaExcluir.Value)).FirstOrDefaultAsync();
         }
-        public async Task<IEnumerable<MesaElectoral>> ObtenerPorEleccionAsync(Guid eleccionId)
+        public async Task<Zona?> ObtenerZonaAsync(Guid zonaId)
         {
-            return await _context.MesasElectorales.AsNoTracking().Where(m => m.EleccionId == eleccionId)
-                .OrderBy(m => m.CodigoMesa).ToListAsync();
+            return await _context.Zonas.AsNoTracking().Where(z => z.IdZona == zonaId).FirstOrDefaultAsync();
         }
         public async Task AgregarAsync(MesaElectoral mesaElectoral)
         {

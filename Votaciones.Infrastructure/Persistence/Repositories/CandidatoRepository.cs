@@ -13,20 +13,13 @@ namespace Votaciones.Infrastructure.Persistence.Repositories
             _context = context;
         }
 
-        public async Task<IEnumerable<Candidato>> ObtenerTodosAsync()
+        public IQueryable<Candidato> ObtenerQuery()
         {
-            return await _context.Candidatos.AsNoTracking()
-                .OrderBy(x => x.NumeroLista).ToListAsync();
+            return _context.Candidatos.AsNoTracking();
         }
         public async Task<Candidato?> ObtenerPorIdAsync(Guid id)
         {
             return await _context.Candidatos.FirstOrDefaultAsync(x => x.IdCandidato == id);
-        }
-        public async Task<IEnumerable<Candidato>> ObtenerPorEleccionAsync(Guid eleccionId)
-        {
-            return await _context.Candidatos.AsNoTracking()
-                .Where(x => x.EleccionId == eleccionId)
-                .OrderBy(x => x.NumeroLista).ToListAsync();
         }
         public async Task AgregarAsync(Candidato candidato)
         {

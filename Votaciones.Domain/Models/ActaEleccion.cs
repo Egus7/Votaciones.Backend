@@ -33,7 +33,6 @@ namespace Votaciones.Domain.Models
         public int TotalVotos { get; set; }
         [Required]
         public EstadoActa Estado { get; set; }
-        [Required]
         public DateTime? FechaModificacion { get; set; }
         public Guid? UsuarioModificacionId { get; set; }
         //detalle

@@ -16,6 +16,11 @@ namespace Votaciones.Infrastructure.Data
         public DbSet<AdmUsuario> Usuarios { get; set; }
         public DbSet<AdmRol> Roles { get; set; }
         public DbSet<AdmBitacora> Bitacora { get; set; }
+        //Zonas
+        public DbSet<Provincia> Provincias { get; set; }
+        public DbSet<Canton> Cantones { get; set; }
+        public DbSet<Parroquia> Parroquias { get; set; }
+        public DbSet<Zona> Zonas { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

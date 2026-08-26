@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
+using Votaciones.Application.Interfaces.IServices;
 using Votaciones.Application.Services.Bitacora;
 using Votaciones.Application.Services.Votaciones;
 using Votaciones.Domain.Interfaces.IServices;
@@ -15,6 +16,8 @@ namespace Votaciones.Application.ServiceRegistration
             services.AddScoped<IEleccionService, EleccionService>();
             services.AddScoped<ICandidatoService, CandidatoService>();
             services.AddScoped<IMesaElectoralService, MesaElectoralService>();
+            services.AddScoped<IActaService, ActaService>();
+            services.AddScoped<IResultadoService, ResultadoService>();
 
             return services;
         }

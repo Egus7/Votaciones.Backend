@@ -17,9 +17,11 @@
         public enum EstadoActa
         {
             Registrada = 1,
-            Validada = 2,
-            Observada = 3,
-            Anulada = 4
+            EnRevision = 2,
+            ConInconsistencia = 3,
+            Validada = 4,
+            Anulada = 5      
         }
+
     }
 }

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json.Serialization;
 using Votaciones.Api.Middleware;
+using Votaciones.Application.DTOs.Mapping;
 using Votaciones.Application.ServiceRegistration;
 using Votaciones.Infrastructure.Data;
 using Votaciones.Infrastructure.ServiceRegistration;
@@ -19,6 +20,8 @@ builder.Services.AddOpenApi();
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
+// AutoMapper
+builder.Services.AddAutoMapper(cfg => { cfg.AddProfile<AutoMapperProfiles>(); });
 // Registro por Capas (Ordenado y Purista)
 builder.Services.AddApplicationServices();
 builder.Services.AddInfrastructureServices();

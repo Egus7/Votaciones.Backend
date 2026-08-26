@@ -20,6 +20,7 @@ namespace Votaciones.Domain.Models
         [Required]
         public Guid CandidatoId { get; set; }
 
+        [JsonIgnore]
         [ForeignKey(nameof(CandidatoId))]
         public Candidato? Candidato { get; set; }
 

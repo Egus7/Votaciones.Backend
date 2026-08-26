@@ -1,4 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Votaciones.Application.DTOs.PaginacionDTO;
+using Votaciones.Application.DTOs.VotacionesDTO;
 using Votaciones.Domain.Interfaces.IServices;
 using Votaciones.Domain.Models;
 
@@ -18,17 +20,17 @@ namespace Votaciones.Api.Controllers
         }
 
         // GET: api/CandidatosController
-        [HttpGet]
-        public async Task<ActionResult<IEnumerable<Candidato>>> ObtenerTodos()
+        [HttpGet("paginacion")]
+        public async Task<ActionResult<PaginacionDTO<CandidatoDTO>>> GetPaginacion(Guid eleccionId, [FromQuery] int pagina = 1, [FromQuery] int pageSize = 7)
         {
-            var candidatos = await _candidatoService.ObtenerTodosAsync();
+            var resultado = await _candidatoService.ObtenerPaginacionAsync(eleccionId, pagina, pageSize);
 
-            return Ok(candidatos);
+            return Ok(resultado);
         }
 
         // GET api/CandidatosController/5
         [HttpGet("{id}")]
-        public async Task<ActionResult<Eleccion>> ObtenerPorId(Guid id)
+        public async Task<ActionResult<CandidatoDTO>> ObtenerPorId(Guid id)
         {
             var candidato = await _candidatoService.ObtenerPorIdAsync(id);
 
@@ -36,15 +38,6 @@ namespace Votaciones.Api.Controllers
                 return NotFound("Candidato no existe");
 
             return Ok(candidato);
-        }
-
-        // GET: api/Candidatos/eleccion/{eleccionId}
-        [HttpGet("by-eleccion/{eleccionId:guid}")]
-        public async Task<ActionResult<Candidato>> ObtenerPorEleccion(Guid eleccionId)
-        {
-            var candidatos = await _candidatoService.ObtenerPorEleccionAsync(eleccionId);
-
-            return Ok(candidatos);
         }
 
         // POST api/CandidatosController

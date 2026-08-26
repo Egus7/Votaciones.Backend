@@ -1,9 +1,15 @@
-﻿using Votaciones.Application.Helpers;
+﻿using AutoMapper;
+using AutoMapper.QueryableExtensions;
+using Microsoft.EntityFrameworkCore;
+using Votaciones.Application.DTOs.PaginacionDTO;
+using Votaciones.Application.DTOs.VotacionesDTO;
+using Votaciones.Application.Helpers;
 using Votaciones.Domain.Interfaces;
 using Votaciones.Domain.Interfaces.IRepositories;
 using Votaciones.Domain.Interfaces.IServices;
 using Votaciones.Domain.Models;
 using static Votaciones.Application.Helpers.Audit.CamposAuditablesBitacora;
+using static Votaciones.Domain.Enums.EnumsEleccion;
 
 namespace Votaciones.Application.Services.Votaciones
 {
@@ -12,30 +18,51 @@ namespace Votaciones.Application.Services.Votaciones
         private readonly IEleccionRepository _eleccionRepository;
         private readonly ICandidatoRepository _candidatoRepository;
         private readonly IBitacoraService _bitacoraService;
+        private readonly IMapper _mapper;
         private readonly IUnitOfWork _unitOfWork;
         //bitacora
         private string tabla = "Candidato";
 
         public CandidatoService(IEleccionRepository eleccionRepository, ICandidatoRepository candidatoRepository, 
-            IBitacoraService bitacoraService, IUnitOfWork unitOfWork)
+            IBitacoraService bitacoraService, IMapper mapper, IUnitOfWork unitOfWork)
         {
             _eleccionRepository = eleccionRepository;
             _candidatoRepository = candidatoRepository;
             _bitacoraService = bitacoraService;
+            _mapper = mapper;
             _unitOfWork = unitOfWork;
         }
 
-        public async Task<IEnumerable<Candidato>> ObtenerTodosAsync()
+        public async Task<PaginacionDTO<CandidatoDTO>> ObtenerPaginacionAsync(Guid eleccionId, int pagina, int pageSize)
         {
-            return await _candidatoRepository.ObtenerTodosAsync();
+            var query = _candidatoRepository.ObtenerQuery().Where(x => x.EleccionId == eleccionId);
+
+            var totalRegistros = await query.CountAsync();
+
+            var items = await query
+                .OrderBy(x => x.NumeroLista)
+                .Skip((pagina - 1) * pageSize)
+                .Take(pageSize)
+                .ProjectTo<CandidatoDTO>(_mapper.ConfigurationProvider)
+                .ToListAsync();
+
+            // armado para la Api
+            return new PaginacionDTO<CandidatoDTO>
+            {
+                Items = items,
+                PageActual = pagina,
+                PageSize = pageSize,
+                TotalRegistros = totalRegistros,
+                TotalPages = (int)Math.Ceiling(totalRegistros / (double)pageSize)
+            };
         }
-        public async Task<Candidato?> ObtenerPorIdAsync(Guid id)
+        public async Task<CandidatoDTO?> ObtenerPorIdAsync(Guid id)
         {
-            return await _candidatoRepository.ObtenerPorIdAsync(id);
-        }
-        public async Task<IEnumerable<Candidato>> ObtenerPorEleccionAsync(Guid eleccionId)
-        {
-            return await _candidatoRepository.ObtenerPorEleccionAsync(eleccionId);
+            var query = _candidatoRepository.ObtenerQuery();
+
+            return await query.Where(x => x.IdCandidato == id)
+                .ProjectTo<CandidatoDTO>(_mapper.ConfigurationProvider)
+                .FirstOrDefaultAsync();
         }
 
         public async Task<Candidato> CrearAsync(Candidato candidato)
@@ -49,6 +76,9 @@ namespace Votaciones.Application.Services.Votaciones
             var eleccion = await _eleccionRepository.ObtenerPorIdAsync(candidato.EleccionId);
             if (eleccion == null)
                 throw new ArgumentException("La elección ingresada no existe");
+            // validar estadoEleccion
+            if (eleccion.Estado == EstadoEleccion.Cerrada)
+                throw new InvalidOperationException("La elección está cerrada.");
             // Lista debe ser mayor a 0
             if (candidato.NumeroLista <= 0)
                 throw new ArgumentException("El número de lista debe ser mayor a 0.");
@@ -81,7 +111,9 @@ namespace Votaciones.Application.Services.Votaciones
             var eleccion = await _eleccionRepository.ObtenerPorIdAsync(candidato.EleccionId);
             if (eleccion == null)
                 throw new KeyNotFoundException("La elección del candidato no existe.");
-
+            // validarEstadoEleccion
+            if (eleccion.Estado == EstadoEleccion.Cerrada)
+                throw new InvalidOperationException("La elección está cerrada.");
             //valores antiguos
             var valoresAnteriores = ObtenerValoresAuditoria(existente, eleccion);
             // actualizar campos

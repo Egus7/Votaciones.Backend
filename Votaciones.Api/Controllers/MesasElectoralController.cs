@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Votaciones.Application.DTOs.PaginacionDTO;
+using Votaciones.Application.DTOs.VotacionesDTO;
 using Votaciones.Domain.Interfaces.IServices;
 using Votaciones.Domain.Models;
 
@@ -20,16 +21,16 @@ namespace Votaciones.Api.Controllers
 
         // GET: api/<MesasElectoralController>/paginacion
         [HttpGet("paginacion")]
-        public  async Task<ActionResult<PaginacionDTO<MesaElectoral>>> GetPaginacion([FromQuery] int pagina = 1, [FromQuery] int pageSize = 7)
+        public  async Task<ActionResult<PaginacionDTO<MesaElectoralDTO>>> GetPaginacion(Guid eleccionId, [FromQuery] int pagina = 1, [FromQuery] int pageSize = 7)
         {
-            var resultado = await _mesaElelectoralService.ObtenerPaginacionAsync(pagina, pageSize);
+            var resultado = await _mesaElelectoralService.ObtenerPaginacionAsync(eleccionId, pagina, pageSize);
 
             return Ok(resultado);
         }
 
         // GET api/<MesasElectoralController>/5
         [HttpGet("{id}")]
-        public async Task<ActionResult<MesaElectoral>> ObtenerPorId(Guid id)
+        public async Task<ActionResult<MesaElectoralDTO>> ObtenerPorId(Guid id)
         {
             var mesaElectoral = await _mesaElelectoralService.ObtenerPorIdAsync(id);
 
@@ -37,15 +38,6 @@ namespace Votaciones.Api.Controllers
                 return NotFound("Mesa electoral no existe");
 
             return Ok(mesaElectoral);
-        }
-
-        // GET: api/Candidatos/eleccion/{eleccionId}
-        [HttpGet("by-eleccion/{eleccionId:guid}")]
-        public async Task<ActionResult<MesaElectoral>> ObtenerPorEleccion(Guid eleccionId)
-        {
-            var candidatos = await _mesaElelectoralService.ObtenerPorEleccionAsync(eleccionId);
-
-            return Ok(candidatos);
         }
 
         // POST api/<MesasElectoralController>

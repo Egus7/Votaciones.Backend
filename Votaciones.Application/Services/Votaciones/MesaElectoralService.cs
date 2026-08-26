@@ -1,10 +1,15 @@
-﻿using Votaciones.Application.DTOs.PaginacionDTO;
+﻿using AutoMapper;
+using AutoMapper.QueryableExtensions;
+using Microsoft.EntityFrameworkCore;
+using Votaciones.Application.DTOs.PaginacionDTO;
+using Votaciones.Application.DTOs.VotacionesDTO;
 using Votaciones.Application.Helpers;
 using Votaciones.Domain.Interfaces;
 using Votaciones.Domain.Interfaces.IRepositories;
 using Votaciones.Domain.Interfaces.IServices;
 using Votaciones.Domain.Models;
 using static Votaciones.Application.Helpers.Audit.CamposAuditablesBitacora;
+using static Votaciones.Domain.Enums.EnumsEleccion;
 
 namespace Votaciones.Application.Services.Votaciones
 {
@@ -13,25 +18,37 @@ namespace Votaciones.Application.Services.Votaciones
         private readonly IMesaElectoralRepository _mesaElectoralRepository;
         private readonly IEleccionRepository _eleccionRepository;
         private readonly IBitacoraService _bitacoraService;
+        private readonly IMapper _mapper;
         private readonly IUnitOfWork _unitOfWork;
         //bitacora
         private string tabla = "MesaElectoral";
 
         public MesaElectoralService(IMesaElectoralRepository mesaElectoralRepository, IEleccionRepository eleccionRepository, 
-            IBitacoraService bitacoraService, IUnitOfWork unitOfWork)
+            IBitacoraService bitacoraService, IMapper mapper, IUnitOfWork unitOfWork)
         {
             _mesaElectoralRepository = mesaElectoralRepository;
             _eleccionRepository = eleccionRepository;
             _bitacoraService = bitacoraService;
+            _mapper = mapper;
             _unitOfWork = unitOfWork;
         }
 
-        public async Task<PaginacionDTO<MesaElectoral>> ObtenerPaginacionAsync(int pagina, int pageSize)
+        public async Task<PaginacionDTO<MesaElectoralDTO>> ObtenerPaginacionAsync(Guid eleccionId, int pagina, int pageSize)
         {
-            var (items, totalRegistros) = await _mesaElectoralRepository.ObtenerPaginacionAsync(pagina, pageSize);
+            var query = _mesaElectoralRepository.ObtenerQuery().Where(x => x.EleccionId == eleccionId);
+
+            var totalRegistros = await query.CountAsync();
+
+            var items = await query
+                .OrderBy(x => x.Zona!.NombreZona)
+                .ThenBy(x => x.CodigoMesa)
+                .Skip((pagina - 1) * pageSize)
+                .Take(pageSize)
+                .ProjectTo<MesaElectoralDTO>(_mapper.ConfigurationProvider)
+                .ToListAsync();
 
             // armado para la Api
-            return new PaginacionDTO<MesaElectoral>
+            return new PaginacionDTO<MesaElectoralDTO>
             {
                 Items = items,
                 PageActual = pagina,
@@ -41,14 +58,13 @@ namespace Votaciones.Application.Services.Votaciones
             };
         }
 
-        public async Task<MesaElectoral?> ObtenerPorIdAsync(Guid id)
+        public async Task<MesaElectoralDTO?> ObtenerPorIdAsync(Guid id)
         {
-            return await _mesaElectoralRepository.ObtenerPorIdAsync(id);
-        }
+            var query = _mesaElectoralRepository.ObtenerQuery();
 
-        public async Task<IEnumerable<MesaElectoral>> ObtenerPorEleccionAsync(Guid eleccionId)
-        {
-            return await _mesaElectoralRepository.ObtenerPorEleccionAsync(eleccionId);
+            return await query.Where(x => x.IdMesaElectoral == id)
+                .ProjectTo<MesaElectoralDTO>(_mapper.ConfigurationProvider)
+                .FirstOrDefaultAsync();
         }
 
         public async Task<MesaElectoral> CrearAsync(MesaElectoral mesaElectoral)
@@ -62,8 +78,15 @@ namespace Votaciones.Application.Services.Votaciones
             var eleccion = await _eleccionRepository.ObtenerPorIdAsync(mesaElectoral.EleccionId);
             if (eleccion == null)
                 throw new ArgumentException("La elección ingresada no existe");
+            //validar estadoEleccion
+            if (eleccion.Estado == EstadoEleccion.Cerrada)
+                throw new InvalidOperationException("La elección está cerrada.");
+            //verificar que exista zona
+            var zona = await _mesaElectoralRepository.ObtenerZonaAsync(mesaElectoral.ZonaId);
+            if (zona == null)
+                throw new ArgumentException("La zona ingresada no existe");
             // verificar que no exista el mismo codigo de mesa para una eleccion
-            var codigoMesa = await _mesaElectoralRepository.ObtenerPorCodigoMesaByEleccionAsync(mesaElectoral.CodigoMesa, mesaElectoral.EleccionId);
+            var codigoMesa = await _mesaElectoralRepository.ObtenerPorCodigoMesaByEleccionAsync(mesaElectoral.CodigoMesa, mesaElectoral.EleccionId, mesaElectoral!.ZonaId);
             if (codigoMesa != null)
                 throw new ArgumentException("El código mesa ingresado ya existe para esta elección electoral");
 
@@ -74,10 +97,11 @@ namespace Votaciones.Application.Services.Votaciones
 
             #region Registrar bitacora
             //valores nuevos
-            var valoresNuevos = ObtenerValoresAuditoria(mesaElectoral, eleccion);
+            var valoresNuevos = ObtenerValoresAuditoria(mesaElectoral, eleccion, zona);
 
             await _bitacoraService.RegistrarBitacoraAsync("INSERT", tabla, mesaElectoral.IdMesaElectoral.ToString(),
-                $"Mesa electoral creada '{mesaElectoral.CodigoMesa}'", mesaElectoral.EleccionId, null, null, valoresNuevos);
+                $"Mesa electoral creada '{mesaElectoral.CodigoMesa}' - Zona: {zona.NombreZona}.", 
+                mesaElectoral.EleccionId, null, null, valoresNuevos);
             #endregion
 
             await _unitOfWork.SaveChangesAsync();
@@ -106,16 +130,22 @@ namespace Votaciones.Application.Services.Votaciones
             var eleccion = await _eleccionRepository.ObtenerPorIdAsync(mesaElectoral.EleccionId);
             if (eleccion == null)
                 throw new ArgumentException("La elección ingresada no existe.");
-
+            // validarEstadoEleccion
+            if (eleccion.Estado == EstadoEleccion.Cerrada)
+                throw new InvalidOperationException("La elección está cerrada.");
+            //verificar que exista zona
+            var zona = await _mesaElectoralRepository.ObtenerZonaAsync(mesaElectoral.ZonaId);
+            if (zona == null)
+                throw new ArgumentException("La zona ingresada no existe");
             // Validar que el código no exista en OTRA mesa de la misma elección (Excluyendo la actual)
             var existeCodigoEnOtraMesa = await _mesaElectoralRepository.ObtenerPorCodigoMesaByEleccionAsync(
-                mesaElectoral.CodigoMesa, mesaElectoral.EleccionId, id); // Excluimos el id de la mesa actual
+                mesaElectoral.CodigoMesa, mesaElectoral.EleccionId, mesaElectoral.ZonaId, id); // Excluimos el id de la mesa actual
             // validar
             if (existeCodigoEnOtraMesa != null)
                 throw new ArgumentException("El código de mesa ingresado ya existe en esta elección electoral.");
 
             #region Capturar valores anteriores para bitácora
-            var valoresAnteriores = ObtenerValoresAuditoria(mesaExistente, eleccion);
+            var valoresAnteriores = ObtenerValoresAuditoria(mesaExistente, eleccion, zona);
             #endregion
 
             // actualizar propiedades en la entidad
@@ -125,7 +155,7 @@ namespace Votaciones.Application.Services.Votaciones
             mesaExistente.Descripcion = mesaElectoral.Descripcion;
 
             #region Registrar bitácora
-            var valoresNuevos = ObtenerValoresAuditoria(mesaExistente, eleccion);
+            var valoresNuevos = ObtenerValoresAuditoria(mesaExistente, eleccion, zona);
             //obtener solo cambios  
             var cambios = BitacoraHelper.ObtenerSoloCambios(valoresAnteriores, valoresNuevos);
             //Registrar bitacora solo si hay cambios
@@ -173,11 +203,12 @@ namespace Votaciones.Application.Services.Votaciones
         }
 
         #region Metodos privados
-        private Dictionary<string, object?> ObtenerValoresAuditoria(MesaElectoral mesaElectoral, Eleccion eleccion)
+        private Dictionary<string, object?> ObtenerValoresAuditoria(MesaElectoral mesaElectoral, Eleccion eleccion, Zona zona)
         {
             var valores = BitacoraHelper.ObtenerValores(mesaElectoral, CamposAuditablesMesaElectoral.Campos);
 
             BitacoraHelper.AgregarRelacion(valores, "Eleccion", eleccion.NombreEleccion);
+            BitacoraHelper.AgregarRelacion(valores, "Zona", zona.NombreZona);
 
             return valores;
         }
