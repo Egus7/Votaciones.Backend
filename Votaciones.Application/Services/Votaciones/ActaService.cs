@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Votaciones.Application.DTOs.PaginacionDTO;
 using Votaciones.Application.DTOs.VotacionesDTO;
 using Votaciones.Application.Helpers;
+using Votaciones.Application.Interfaces.ISecurity;
 using Votaciones.Application.Interfaces.IServices;
 using Votaciones.Application.Utils;
 using Votaciones.Domain.Interfaces;
@@ -24,11 +25,12 @@ namespace Votaciones.Application.Services.Votaciones
         private readonly IBitacoraService _bitacoraService;
         private readonly IMapper _mapper;
         private readonly IUnitOfWork _unitOfWork;
+        private readonly ICurrentService _currentService;
         //bitacora
         private string tabla = "ActaEleccion";
 
         public ActaService (IActaRepository actaRepository, IMesaElectoralRepository mesaElectoralRepository, IEleccionRepository eleccionRepository,
-                ICandidatoRepository candidatoRepository, IBitacoraService bitacoraService, IMapper mapper, IUnitOfWork unitOfWork)
+                ICandidatoRepository candidatoRepository, IBitacoraService bitacoraService, IMapper mapper, IUnitOfWork unitOfWork, ICurrentService currentService)
         {
             _actaRepository = actaRepository;
             _mesaElectoralRepository = mesaElectoralRepository;
@@ -37,6 +39,7 @@ namespace Votaciones.Application.Services.Votaciones
             _bitacoraService = bitacoraService;
             _mapper = mapper;
             _unitOfWork = unitOfWork;
+            _currentService = currentService;
         }
 
         public async Task<PaginacionDTO<ActaDTO>> ObtenerPaginacionAsync(Guid eleccionId, int pagina, int pageSize)
@@ -126,8 +129,9 @@ namespace Votaciones.Application.Services.Votaciones
             // crearActa
             acta.IdActa = Guid.NewGuid();
             acta.FechaRegistro = Fecha.DevolverDatetime(DateTime.UtcNow.ToString("o"));
+            acta.UsuarioRegistroId = _currentService.UsuarioId ?? Guid.Empty;
             acta.Estado = EstadoActa.Registrada;
-            acta.FechaModificacion = new DateTime(1900, 01, 01);
+            acta.FechaModificacion = null;
             acta.UsuarioModificacionId = null;
             //Crear detalles
             foreach (var detalleDto in acta.ActaDetalles)
@@ -162,7 +166,7 @@ namespace Votaciones.Application.Services.Votaciones
                 var valoresNuevos = ObtenerValoresAuditoria(acta, eleccion, mesaElec);
 
                 await _bitacoraService.RegistrarBitacoraAsync("INSERT", tabla, acta.IdActa.ToString(), 
-                    $"Acta registrada para la mesa '{mesaElec.CodigoMesa}'.", acta.EleccionId, null, null, valoresNuevos);
+                    $"Acta registrada para la mesa '{mesaElec.CodigoMesa}'.", acta.EleccionId, _currentService.UsuarioId, null, valoresNuevos);
                 #endregion
 
                 await _unitOfWork.SaveChangesAsync();
@@ -268,10 +272,12 @@ namespace Votaciones.Application.Services.Votaciones
                 var cambios = BitacoraHelper.ObtenerSoloCambios(valoresAnteriores, valoresNuevos);
                 if (cambios.Nuevos.Any())
                 {
+                    existente.UsuarioModificacionId = _currentService.UsuarioId;
                     existente.FechaModificacion = Fecha.DevolverDatetime(DateTime.UtcNow.ToString("o"));
                     // Bitácora
                     await _bitacoraService.RegistrarBitacoraAsync("UPDATE", tabla, acta.IdActa.ToString(),
-                        $"Acta modificada para la mesa '{mesaElec.CodigoMesa}'.", acta.EleccionId, null, cambios.Anteriores, cambios.Nuevos);
+                        $"Acta modificada para la mesa '{mesaElec.CodigoMesa}'.", acta.EleccionId, _currentService.UsuarioId, 
+                        cambios.Anteriores, cambios.Nuevos);
                 }
 
                 await _unitOfWork.SaveChangesAsync();
@@ -331,7 +337,7 @@ namespace Votaciones.Application.Services.Votaciones
             try
             {
                 await _bitacoraService.RegistrarBitacoraAsync("UPDATE", tabla, acta.IdActa.ToString(), 
-                    $"Estado del acta modificado a '{nuevoEstado}'.", acta.EleccionId, null, cambios.Anteriores, cambios.Nuevos);
+                    $"Estado del acta modificado a '{nuevoEstado}'.", acta.EleccionId, _currentService.UsuarioId, cambios.Anteriores, cambios.Nuevos);
 
                 await _unitOfWork.SaveChangesAsync();
                 await _unitOfWork.CommitTransactionAsync();

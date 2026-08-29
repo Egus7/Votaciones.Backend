@@ -28,6 +28,7 @@ namespace Votaciones.Api.Middleware
         {
             var statusCode = exception switch
             {
+                UnauthorizedAccessException => HttpStatusCode.Unauthorized,
                 KeyNotFoundException => HttpStatusCode.NotFound,
                 ArgumentException => HttpStatusCode.BadRequest,
                 InvalidOperationException => HttpStatusCode.BadRequest,

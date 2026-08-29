@@ -50,5 +50,27 @@ namespace Votaciones.Application.Helpers.Audit
             };
         }
 
+        //Seguridad
+        public static class CamposAuditablesUsuario
+        {
+            public static readonly string[] Campos =
+            {
+                nameof(AdmUsuario.NombreUsuario),
+                nameof(AdmUsuario.EmailUsuario),
+                nameof(AdmUsuario.Estado),
+                nameof(AdmUsuario.FechaCreacion)
+            };
+        }
+
+        public static class CamposAuditablesRol
+        {
+            public static readonly string[] Campos =
+            {
+                nameof(AdmRol.NombreRol),
+                nameof(AdmRol.DescripcionRol),
+                nameof(AdmRol.PermisosRol),
+                nameof(AdmRol.Activo)
+            };
+        }
     }
 }

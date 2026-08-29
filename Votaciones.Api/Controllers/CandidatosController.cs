@@ -1,6 +1,8 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Votaciones.Application.DTOs.PaginacionDTO;
 using Votaciones.Application.DTOs.VotacionesDTO;
+using Votaciones.Application.Security;
 using Votaciones.Domain.Interfaces.IServices;
 using Votaciones.Domain.Models;
 
@@ -10,6 +12,7 @@ namespace Votaciones.Api.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class CandidatosController : ControllerBase
     {
         private readonly ICandidatoService _candidatoService;
@@ -21,6 +24,7 @@ namespace Votaciones.Api.Controllers
 
         // GET: api/CandidatosController
         [HttpGet("paginacion")]
+        [Authorize(Policy = RolPermisos.CandidatosView)]
         public async Task<ActionResult<PaginacionDTO<CandidatoDTO>>> GetPaginacion(Guid eleccionId, [FromQuery] int pagina = 1, [FromQuery] int pageSize = 7)
         {
             var resultado = await _candidatoService.ObtenerPaginacionAsync(eleccionId, pagina, pageSize);
@@ -30,6 +34,7 @@ namespace Votaciones.Api.Controllers
 
         // GET api/CandidatosController/5
         [HttpGet("{id}")]
+        [Authorize(Policy = RolPermisos.CandidatosView)]
         public async Task<ActionResult<CandidatoDTO>> ObtenerPorId(Guid id)
         {
             var candidato = await _candidatoService.ObtenerPorIdAsync(id);
@@ -42,6 +47,7 @@ namespace Votaciones.Api.Controllers
 
         // POST api/CandidatosController
         [HttpPost]
+        [Authorize(Policy = RolPermisos.CandidatosCreate)]
         public async Task<ActionResult<Candidato>> CrearCandidato(Candidato candidato)
         {
             var resultado = await _candidatoService.CrearAsync(candidato);
@@ -51,6 +57,7 @@ namespace Votaciones.Api.Controllers
 
         // PUT api/CandidatosController/5
         [HttpPut("{id}")]
+        [Authorize(Policy = RolPermisos.CandidatosEdit)]
         public async Task<IActionResult> ActualizarCandidato(Guid id, Candidato candidato)
         {
             var resultado = await _candidatoService.ActualizarAsync(id, candidato);
@@ -60,6 +67,7 @@ namespace Votaciones.Api.Controllers
 
         // PUT: api/Candidatos/cambiarEstado/{id}
         [HttpPut("cambiarEstado/{id:guid}")]
+        [Authorize(Policy = RolPermisos.CandidatosEdit)]
         public async Task<IActionResult> CambiarEstado(Guid id)
         {
             var resultado = await _candidatoService.CambiarEstadoAsync(id);

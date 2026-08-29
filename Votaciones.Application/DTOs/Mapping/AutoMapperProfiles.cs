@@ -1,4 +1,5 @@
 ﻿using AutoMapper;
+using Votaciones.Application.DTOs.SeguridadDTO;
 using Votaciones.Application.DTOs.VotacionesDTO;
 using Votaciones.Domain.Models;
 
@@ -36,7 +37,15 @@ namespace Votaciones.Application.DTOs.Mapping
                 .ForMember(dest => dest.Candidato, opt => opt.MapFrom(src => src.Candidato!.NombreCandidato))
                 .ForMember(dest => dest.Lista, opt => opt.MapFrom(src => src.Candidato!.Lista))
                 .ForMember(dest => dest.NumeroLista, opt => opt.MapFrom(src => src.Candidato!.NumeroLista));
-        
+
+            //Usuario
+            CreateMap<AdmUsuario, UsuarioDTO>()
+                .ForMember(dest => dest.NombreRol, opt => opt.MapFrom(src => src.Rol!.NombreRol));
+
+            //Rol
+            CreateMap<AdmRol, RolDTO>()
+                .ForMember(dest => dest.Permisos, opt => opt.Ignore());
+
         }
     }
 }

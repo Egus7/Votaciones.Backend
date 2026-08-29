@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Votaciones.Application.DTOs.PaginacionDTO;
 using Votaciones.Application.DTOs.VotacionesDTO;
 using Votaciones.Application.Helpers;
+using Votaciones.Application.Interfaces.ISecurity;
 using Votaciones.Domain.Interfaces;
 using Votaciones.Domain.Interfaces.IRepositories;
 using Votaciones.Domain.Interfaces.IServices;
@@ -20,17 +21,19 @@ namespace Votaciones.Application.Services.Votaciones
         private readonly IBitacoraService _bitacoraService;
         private readonly IMapper _mapper;
         private readonly IUnitOfWork _unitOfWork;
+        private readonly ICurrentService _currentService;
         //bitacora
         private string tabla = "Candidato";
 
         public CandidatoService(IEleccionRepository eleccionRepository, ICandidatoRepository candidatoRepository, 
-            IBitacoraService bitacoraService, IMapper mapper, IUnitOfWork unitOfWork)
+            IBitacoraService bitacoraService, IMapper mapper, IUnitOfWork unitOfWork, ICurrentService currentService)
         {
             _eleccionRepository = eleccionRepository;
             _candidatoRepository = candidatoRepository;
             _bitacoraService = bitacoraService;
             _mapper = mapper;
             _unitOfWork = unitOfWork;
+            _currentService = currentService;
         }
 
         public async Task<PaginacionDTO<CandidatoDTO>> ObtenerPaginacionAsync(Guid eleccionId, int pagina, int pageSize)
@@ -93,7 +96,7 @@ namespace Votaciones.Application.Services.Votaciones
             var valoresNuevos = ObtenerValoresAuditoria(candidato, eleccion);
 
             await _bitacoraService.RegistrarBitacoraAsync("INSERT", tabla, candidato.IdCandidato.ToString(),
-                $"Candidato creado '{candidato.NombreCandidato}'", candidato.EleccionId, null, null, valoresNuevos);
+                $"Candidato creado '{candidato.NombreCandidato}'", candidato.EleccionId, _currentService.UsuarioId, null, valoresNuevos);
             #endregion
 
             await _unitOfWork.SaveChangesAsync();
@@ -132,7 +135,7 @@ namespace Votaciones.Application.Services.Votaciones
             if (cambios.Nuevos.Any())
             {
                 await _bitacoraService.RegistrarBitacoraAsync("UPDATE", tabla, existente.IdCandidato.ToString(),
-                    $"Candidato modificado '{existente.NombreCandidato}'", existente.EleccionId, null, cambios.Anteriores, cambios.Nuevos);
+                    $"Candidato modificado '{existente.NombreCandidato}'", existente.EleccionId, _currentService.UsuarioId, cambios.Anteriores, cambios.Nuevos);
             }
             #endregion
             // Guardar cambios
@@ -164,7 +167,7 @@ namespace Votaciones.Application.Services.Votaciones
                 //bitacora
                 string descripcion = $"Candidato {existente.NombreCandidato} modificado estado a '{(existente.Activo ? "Activo" : "Inactivo")}'";
                 await _bitacoraService.RegistrarBitacoraAsync("UPDATE", tabla, existente.IdCandidato.ToString(), descripcion,
-                    existente.EleccionId, null, cambios.Anteriores, cambios.Nuevos);
+                    existente.EleccionId, _currentService.UsuarioId, cambios.Anteriores, cambios.Nuevos);
             }
             #endregion
 

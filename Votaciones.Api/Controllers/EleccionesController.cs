@@ -1,4 +1,6 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Votaciones.Application.Security;
 using Votaciones.Domain.Interfaces.IServices;
 using Votaciones.Domain.Models;
 
@@ -6,6 +8,7 @@ namespace Votaciones.Api.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class EleccionesController : ControllerBase
     {
         private readonly IEleccionService _eleccionService;
@@ -16,6 +19,7 @@ namespace Votaciones.Api.Controllers
         }
 
         [HttpGet]
+        [Authorize(Policy = RolPermisos.EleccionesView)]
         public async Task<ActionResult<IEnumerable<Eleccion>>> ObtenerTodos()
         {
             var elecciones = await _eleccionService.ObtenerTodosAsync();
@@ -24,6 +28,7 @@ namespace Votaciones.Api.Controllers
         }
 
         [HttpGet("{id:guid}")]
+        [Authorize(Policy = RolPermisos.EleccionesView)]
         public async Task<ActionResult<Eleccion>> ObtenerPorId(Guid id)
         {
             var eleccion = await _eleccionService.ObtenerPorIdAsync(id);
@@ -35,6 +40,7 @@ namespace Votaciones.Api.Controllers
         }
 
         [HttpPost]
+        [Authorize(Policy = RolPermisos.EleccionesCreate)]
         public async Task<ActionResult<Eleccion>> CrearEleccion(Eleccion eleccion)
         {
             var resultado = await _eleccionService.CrearAsync(eleccion);
@@ -43,6 +49,7 @@ namespace Votaciones.Api.Controllers
         }
 
         [HttpPut("{id:guid}")]
+        [Authorize(Policy = RolPermisos.EleccionesEdit)]
         public async Task<IActionResult> ActualizarEleccion(Guid id, Eleccion eleccion)
         {
             var resultado = await _eleccionService.ActualizarAsync(id, eleccion);

@@ -47,16 +47,12 @@ namespace Votaciones.Infrastructure.Data
             });
 
             //Usuarios
-            modelBuilder.Entity<AdmUsuario>()
-                .HasIndex(u => u.NombreUsuario)
-                .IsUnique();
-
             //Relacion Rol - Usuario
             modelBuilder.Entity<AdmUsuario>()
                 .HasOne(u => u.Rol)
                 .WithMany()
                 .HasForeignKey(u => u.RolId)
-                .OnDelete(DeleteBehavior.Cascade); // No se permite eliminar un rol si tiene usuario asociados
+                .OnDelete(DeleteBehavior.Restrict); // No se permite eliminar un rol si tiene usuario asociados
 
             //Relacion MesaElectoral - Eleccion
             modelBuilder.Entity<MesaElectoral>()

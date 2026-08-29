@@ -1,4 +1,5 @@
 ﻿using Votaciones.Application.Helpers;
+using Votaciones.Application.Interfaces.ISecurity;
 using Votaciones.Application.Utils;
 using Votaciones.Domain.Interfaces;
 using Votaciones.Domain.Interfaces.IRepositories;
@@ -14,14 +15,17 @@ namespace Votaciones.Application.Services.Votaciones
         private readonly IEleccionRepository _eleccionRepository;
         private readonly IBitacoraService _bitacoraService;
         private readonly IUnitOfWork _unitOfWork;
+        private readonly ICurrentService _currentService;
         //bitacora
         private string tabla = "Eleccion";
 
-        public EleccionService(IEleccionRepository eleccionRepository, IBitacoraService bitacoraService, IUnitOfWork  unitOfWork)
+        public EleccionService(IEleccionRepository eleccionRepository, IBitacoraService bitacoraService, IUnitOfWork  unitOfWork, 
+                ICurrentService currentService)
         {
             _eleccionRepository = eleccionRepository;
             _bitacoraService = bitacoraService;
             _unitOfWork = unitOfWork;
+            _currentService = currentService;
         }
 
         public async Task<IEnumerable<Eleccion>> ObtenerTodosAsync()
@@ -49,7 +53,7 @@ namespace Votaciones.Application.Services.Votaciones
             var valoresNuevos = BitacoraHelper.ObtenerValores(eleccion, CamposAuditablesEleccion.Campos);
             // Bitacora
             await _bitacoraService.RegistrarBitacoraAsync("INSERT", tabla, eleccion.IdEleccion.ToString(), 
-                $"Elección creada '{eleccion.NombreEleccion}'", eleccion.IdEleccion, null, null, valoresNuevos);
+                $"Elección creada '{eleccion.NombreEleccion}'", eleccion.IdEleccion, _currentService.UsuarioId, null, valoresNuevos);
             #endregion
 
             await _unitOfWork.SaveChangesAsync();
@@ -84,7 +88,7 @@ namespace Votaciones.Application.Services.Votaciones
                 existente.FechaModificacion = Fecha.DevolverDatetime(DateTime.UtcNow.ToString("o"));
                 // Bitacora
                 await _bitacoraService.RegistrarBitacoraAsync("UPDATE", tabla, existente.IdEleccion.ToString(),
-                $"Elección modificada '{existente.NombreEleccion}'", existente.IdEleccion, null, 
+                $"Elección modificada '{existente.NombreEleccion}'", existente.IdEleccion, _currentService.UsuarioId, 
                 cambios.Anteriores, cambios.Nuevos);
             }
             #endregion

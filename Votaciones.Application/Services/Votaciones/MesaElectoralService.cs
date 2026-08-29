@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Votaciones.Application.DTOs.PaginacionDTO;
 using Votaciones.Application.DTOs.VotacionesDTO;
 using Votaciones.Application.Helpers;
+using Votaciones.Application.Interfaces.ISecurity;
 using Votaciones.Domain.Interfaces;
 using Votaciones.Domain.Interfaces.IRepositories;
 using Votaciones.Domain.Interfaces.IServices;
@@ -20,17 +21,19 @@ namespace Votaciones.Application.Services.Votaciones
         private readonly IBitacoraService _bitacoraService;
         private readonly IMapper _mapper;
         private readonly IUnitOfWork _unitOfWork;
+        private readonly ICurrentService _currentService;
         //bitacora
         private string tabla = "MesaElectoral";
 
         public MesaElectoralService(IMesaElectoralRepository mesaElectoralRepository, IEleccionRepository eleccionRepository, 
-            IBitacoraService bitacoraService, IMapper mapper, IUnitOfWork unitOfWork)
+            IBitacoraService bitacoraService, IMapper mapper, IUnitOfWork unitOfWork, ICurrentService currentService)
         {
             _mesaElectoralRepository = mesaElectoralRepository;
             _eleccionRepository = eleccionRepository;
             _bitacoraService = bitacoraService;
             _mapper = mapper;
             _unitOfWork = unitOfWork;
+            _currentService = currentService;
         }
 
         public async Task<PaginacionDTO<MesaElectoralDTO>> ObtenerPaginacionAsync(Guid eleccionId, int pagina, int pageSize)
@@ -101,7 +104,7 @@ namespace Votaciones.Application.Services.Votaciones
 
             await _bitacoraService.RegistrarBitacoraAsync("INSERT", tabla, mesaElectoral.IdMesaElectoral.ToString(),
                 $"Mesa electoral creada '{mesaElectoral.CodigoMesa}' - Zona: {zona.NombreZona}.", 
-                mesaElectoral.EleccionId, null, null, valoresNuevos);
+                mesaElectoral.EleccionId, _currentService.UsuarioId, null, valoresNuevos);
             #endregion
 
             await _unitOfWork.SaveChangesAsync();
@@ -162,7 +165,8 @@ namespace Votaciones.Application.Services.Votaciones
             if (cambios.Nuevos.Any())
             {
                 await _bitacoraService.RegistrarBitacoraAsync("UPDATE", tabla, mesaExistente.IdMesaElectoral.ToString(),
-                $"Mesa electoral modificada '{mesaExistente.CodigoMesa}'", mesaExistente.EleccionId, null, cambios.Anteriores, cambios.Nuevos);
+                $"Mesa electoral modificada '{mesaExistente.CodigoMesa}'", mesaExistente.EleccionId, _currentService.UsuarioId, 
+                cambios.Anteriores, cambios.Nuevos);
             }
             #endregion
 
@@ -193,7 +197,7 @@ namespace Votaciones.Application.Services.Votaciones
                 //bitacora
                 string descripcion = $"Mesa electoral {existente.CodigoMesa} modificado estado a '{(existente.Activa ? "Activo" : "Inactivo")}'";
                 await _bitacoraService.RegistrarBitacoraAsync("UPDATE", tabla, existente.IdMesaElectoral.ToString(), descripcion,
-                    existente.EleccionId, null, cambios.Anteriores, cambios.Nuevos);
+                    existente.EleccionId, _currentService.UsuarioId, cambios.Anteriores, cambios.Nuevos);
             }
             #endregion
 

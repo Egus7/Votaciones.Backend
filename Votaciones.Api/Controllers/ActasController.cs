@@ -1,7 +1,9 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Votaciones.Application.DTOs.PaginacionDTO;
 using Votaciones.Application.DTOs.VotacionesDTO;
 using Votaciones.Application.Interfaces.IServices;
+using Votaciones.Application.Security;
 using Votaciones.Domain.Models;
 using static Votaciones.Domain.Enums.EnumsEleccion;
 
@@ -9,6 +11,7 @@ namespace Votaciones.Api.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class ActasController : ControllerBase
     {
         private readonly IActaService _actaService;
@@ -19,6 +22,7 @@ namespace Votaciones.Api.Controllers
         }
 
         [HttpGet("paginacion")]
+        [Authorize(Policy = RolPermisos.ActasView)]
         public async Task<ActionResult<PaginacionDTO<ActaDTO>>> GetPaginacion(Guid eleccionId, [FromQuery] int pagina = 1, [FromQuery] int pageSize = 7)
         {
             var resultado = await _actaService.ObtenerPaginacionAsync(eleccionId, pagina, pageSize);
@@ -27,6 +31,7 @@ namespace Votaciones.Api.Controllers
         }
 
         [HttpGet("{id:guid}")]
+        [Authorize(Policy = RolPermisos.ActasView)]
         public async Task<ActionResult<ActaDTO>> ObtenerPorId(Guid id)
         {
             var acta = await _actaService.ObtenerPorIdAsync(id);
@@ -38,6 +43,7 @@ namespace Votaciones.Api.Controllers
         }
 
         [HttpGet("mesa/{mesaId:guid}")]
+        [Authorize(Policy = RolPermisos.ActasView)]
         public async Task<ActionResult<ActaDTO>> ObtenerPorMesa(Guid mesaId)
         {
             var acta = await _actaService.ObtenerPorMesaAsync(mesaId);
@@ -49,6 +55,7 @@ namespace Votaciones.Api.Controllers
         }
 
         [HttpPost]
+        [Authorize(Policy = RolPermisos.ActasRegistrar)]
         public async Task<ActionResult<ActaEleccion>> CrearActa(ActaEleccion acta)
         {
             //var usuarioId = UsuarioId; // del usuario autenticado
@@ -58,6 +65,7 @@ namespace Votaciones.Api.Controllers
         }
 
         [HttpPut("{id:guid}")]
+        [Authorize(Policy = RolPermisos.ActasEditar)]
         public async Task<IActionResult> ActualizarActa(Guid id, ActaEleccion acta)
         {
             //var usuarioId = UsuarioId;
@@ -67,6 +75,7 @@ namespace Votaciones.Api.Controllers
         }
 
         [HttpPut("cambiarEstado/{id:guid}")]
+        [Authorize(Policy = RolPermisos.ActasValidar)]
         public async Task<IActionResult> CambiarEstado(Guid id, EstadoActa nuevoEstado)
         {
             var resultado = await _actaService.CambiarEstadoAsync(id, nuevoEstado);

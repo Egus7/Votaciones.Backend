@@ -1,6 +1,8 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Votaciones.Application.DTOs.PaginacionDTO;
 using Votaciones.Application.DTOs.VotacionesDTO;
+using Votaciones.Application.Security;
 using Votaciones.Domain.Interfaces.IServices;
 using Votaciones.Domain.Models;
 
@@ -10,6 +12,7 @@ namespace Votaciones.Api.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class MesasElectoralController : ControllerBase
     {
         private IMesaElectoralService _mesaElelectoralService;
@@ -21,6 +24,7 @@ namespace Votaciones.Api.Controllers
 
         // GET: api/<MesasElectoralController>/paginacion
         [HttpGet("paginacion")]
+        [Authorize(Policy = RolPermisos.MesasView)]
         public  async Task<ActionResult<PaginacionDTO<MesaElectoralDTO>>> GetPaginacion(Guid eleccionId, [FromQuery] int pagina = 1, [FromQuery] int pageSize = 7)
         {
             var resultado = await _mesaElelectoralService.ObtenerPaginacionAsync(eleccionId, pagina, pageSize);
@@ -30,6 +34,7 @@ namespace Votaciones.Api.Controllers
 
         // GET api/<MesasElectoralController>/5
         [HttpGet("{id}")]
+        [Authorize(Policy = RolPermisos.MesasView)]
         public async Task<ActionResult<MesaElectoralDTO>> ObtenerPorId(Guid id)
         {
             var mesaElectoral = await _mesaElelectoralService.ObtenerPorIdAsync(id);
@@ -42,6 +47,7 @@ namespace Votaciones.Api.Controllers
 
         // POST api/<MesasElectoralController>
         [HttpPost]
+        [Authorize(Policy = RolPermisos.MesasCreate)]
         public async Task<ActionResult<MesaElectoral>> CrearMesaElectoral(MesaElectoral mesaElectoral)
         {
             var resultado = await _mesaElelectoralService.CrearAsync(mesaElectoral);
@@ -51,6 +57,7 @@ namespace Votaciones.Api.Controllers
 
         // PUT api/<MesasElectoralController>/5
         [HttpPut("{id}")]
+        [Authorize(Policy = RolPermisos.MesasEdit)]
         public async Task<IActionResult> ActualizarMesaElectoral(Guid id, MesaElectoral mesaElectoral)
         {
             var resultado = await _mesaElelectoralService.ActualizarAsync(id, mesaElectoral);
@@ -60,6 +67,7 @@ namespace Votaciones.Api.Controllers
 
         // PUT: api/MesasElectoral/cambiarEstado/{id}
         [HttpPut("cambiarEstado/{id:guid}")]
+        [Authorize(Policy = RolPermisos.MesasEdit)]
         public async Task<IActionResult> CambiarEstado(Guid id)
         {
             var resultado = await _mesaElelectoralService.CambiarEstadoAsync(id);
