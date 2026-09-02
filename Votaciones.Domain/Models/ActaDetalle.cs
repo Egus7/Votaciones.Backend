@@ -18,8 +18,12 @@ namespace Votaciones.Domain.Models
         public ActaEleccion? ActaCab { get; set; }
 
         [Required]
-        public Guid CandidatoId { get; set; }
+        public Guid ListaElectoralId { get; set; }
+        [JsonIgnore]
+        [ForeignKey(nameof(ListaElectoralId))]
+        public ListaElectoral? ListaElectoral { get; set; }
 
+        public Guid? CandidatoId { get; set; }
         [JsonIgnore]
         [ForeignKey(nameof(CandidatoId))]
         public Candidato? Candidato { get; set; }

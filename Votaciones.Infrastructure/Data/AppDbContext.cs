@@ -8,6 +8,7 @@ namespace Votaciones.Infrastructure.Data
         public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
         public DbSet<Eleccion> Elecciones { get; set; }
+        public DbSet<ListaElectoral> ListasElectorales { get; set; }
         public DbSet<Candidato> Candidatos { get; set; }
         public DbSet<ActaEleccion> ActasEleccion { get; set; }
         public DbSet<ActaDetalle> ActasDetalle { get; set; }
@@ -67,6 +68,12 @@ namespace Votaciones.Infrastructure.Data
                 .WithMany()
                 .HasForeignKey(c => c.EleccionId)
                 .OnDelete(DeleteBehavior.Restrict); // No se permite eliminar una eleccion si tiene candidatos asociados
+            // Relacion Candidatos - Lista
+            modelBuilder.Entity<Candidato>()
+                .HasOne(c => c.ListaElectoral)
+                .WithMany()
+                .HasForeignKey(c => c.ListaElectoralId)
+                .OnDelete(DeleteBehavior.Restrict); // No se permite eliminar una lista si tiene candidatos asociados
 
             // Relacion ActaCab - MesaElectoral
             modelBuilder.Entity<ActaEleccion>()

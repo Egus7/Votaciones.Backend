@@ -15,6 +15,7 @@ namespace Votaciones.Application.ServiceRegistration
             // Logica de negocio
             services.AddScoped<IBitacoraService, BitacoraService>();
             services.AddScoped<IEleccionService, EleccionService>();
+            services.AddScoped<IListaElectoralService, ListaElectoralService>();
             services.AddScoped<ICandidatoService, CandidatoService>();
             services.AddScoped<IMesaElectoralService, MesaElectoralService>();
             services.AddScoped<IActaService, ActaService>();

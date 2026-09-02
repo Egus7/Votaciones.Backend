@@ -17,6 +17,7 @@ namespace Votaciones.Application.Services.Votaciones
     public class CandidatoService : ICandidatoService
     {
         private readonly IEleccionRepository _eleccionRepository;
+        private readonly IListaElectoralRepository _listaElectoralRepository;
         private readonly ICandidatoRepository _candidatoRepository;
         private readonly IBitacoraService _bitacoraService;
         private readonly IMapper _mapper;
@@ -25,10 +26,12 @@ namespace Votaciones.Application.Services.Votaciones
         //bitacora
         private string tabla = "Candidato";
 
-        public CandidatoService(IEleccionRepository eleccionRepository, ICandidatoRepository candidatoRepository, 
-            IBitacoraService bitacoraService, IMapper mapper, IUnitOfWork unitOfWork, ICurrentService currentService)
+        public CandidatoService(IEleccionRepository eleccionRepository, IListaElectoralRepository listaElectoralRepository, 
+            ICandidatoRepository candidatoRepository, IBitacoraService bitacoraService, IMapper mapper, IUnitOfWork unitOfWork, 
+            ICurrentService currentService)
         {
             _eleccionRepository = eleccionRepository;
+            _listaElectoralRepository = listaElectoralRepository;
             _candidatoRepository = candidatoRepository;
             _bitacoraService = bitacoraService;
             _mapper = mapper;
@@ -43,7 +46,8 @@ namespace Votaciones.Application.Services.Votaciones
             var totalRegistros = await query.CountAsync();
 
             var items = await query
-                .OrderBy(x => x.NumeroLista)
+                .OrderBy(x => x.NombreCandidato)
+                .ThenBy(x => x.TipoCandidato)
                 .Skip((pagina - 1) * pageSize)
                 .Take(pageSize)
                 .ProjectTo<CandidatoDTO>(_mapper.ConfigurationProvider)
@@ -82,9 +86,26 @@ namespace Votaciones.Application.Services.Votaciones
             // validar estadoEleccion
             if (eleccion.Estado == EstadoEleccion.Cerrada)
                 throw new InvalidOperationException("La elección está cerrada.");
-            // Lista debe ser mayor a 0
-            if (candidato.NumeroLista <= 0)
-                throw new ArgumentException("El número de lista debe ser mayor a 0.");
+            // Verificar que la lista electoral exista
+            var listaElectoral = await _listaElectoralRepository.ObtenerPorIdAsync(candidato.ListaElectoralId);
+            if (listaElectoral == null)
+                throw new ArgumentException("La lista electoral ingresada no existe.");
+            //validar estado lista
+            if (listaElectoral.Activo == false)
+                throw new InvalidOperationException("La lista electoral seleccionada esta suspendida");
+            //validacion para concejales, que no se repita el orden en la misma lista y elección
+            if (candidato.TipoCandidato == TipoCandidato.ConcejalUrbano || candidato.TipoCandidato == TipoCandidato.ConcejalRural)
+            {
+                if (candidato.Orden == null || candidato.Orden <= 0)
+                    throw new ArgumentException("El orden del candidato para concejal es obligatorio.");
+
+                var candidatosMismaLista = await _candidatoRepository.ObtenerQuery()
+                    .Where(x => x.ListaElectoralId == candidato.ListaElectoralId && x.EleccionId == candidato.EleccionId)
+                    .ToListAsync();
+
+                if (candidatosMismaLista.Any(x => x.Orden == candidato.Orden))
+                    throw new InvalidOperationException($"El orden del candidato para concejal ya está en uso para la lista electoral {listaElectoral.NombreLista}.");
+            }
 
             candidato.IdCandidato = Guid.NewGuid();
             candidato.Activo = true;
@@ -93,7 +114,7 @@ namespace Votaciones.Application.Services.Votaciones
 
             #region Registrar bitacora
             //valores nuevos
-            var valoresNuevos = ObtenerValoresAuditoria(candidato, eleccion);
+            var valoresNuevos = ObtenerValoresAuditoria(candidato, eleccion, listaElectoral);
 
             await _bitacoraService.RegistrarBitacoraAsync("INSERT", tabla, candidato.IdCandidato.ToString(),
                 $"Candidato creado '{candidato.NombreCandidato}'", candidato.EleccionId, _currentService.UsuarioId, null, valoresNuevos);
@@ -105,7 +126,7 @@ namespace Votaciones.Application.Services.Votaciones
         }
 
         public async Task<Candidato> ActualizarAsync(Guid id, Candidato candidato)
-        { 
+        {
             var existente = await _candidatoRepository.ObtenerPorIdAsync(id);
 
             if (existente == null)
@@ -117,16 +138,27 @@ namespace Votaciones.Application.Services.Votaciones
             // validarEstadoEleccion
             if (eleccion.Estado == EstadoEleccion.Cerrada)
                 throw new InvalidOperationException("La elección está cerrada.");
+            // Verificar que la lista electoral exista
+            var listaElectoral = await _listaElectoralRepository.ObtenerPorIdAsync(candidato.ListaElectoralId);
+            if (listaElectoral == null)
+                throw new ArgumentException("La lista electoral ingresada no existe.");
+            //validar estado lista
+            if (listaElectoral.Activo == false)
+                throw new InvalidOperationException("La lista electoral seleccionada esta suspendida");
+
             //valores antiguos
-            var valoresAnteriores = ObtenerValoresAuditoria(existente, eleccion);
+            var eleccionExistente = await _eleccionRepository.ObtenerPorIdAsync(existente.EleccionId);
+            var listaElectoralExistente = await _listaElectoralRepository.ObtenerPorIdAsync(existente.ListaElectoralId);
+            var valoresAnteriores = ObtenerValoresAuditoria(existente, eleccionExistente!, listaElectoralExistente!);
             // actualizar campos
             existente.NombreCandidato = candidato.NombreCandidato;
-            existente.NumeroLista = candidato.NumeroLista;
-            existente.Lista = candidato.Lista;
+            existente.TipoCandidato = candidato.TipoCandidato;
+            existente.ListaElectoralId = candidato.ListaElectoralId;
+            existente.Orden = candidato.Orden;
             existente.Activo = candidato.Activo;
 
             //valores nuevos
-            var valoresNuevos = ObtenerValoresAuditoria(existente, eleccion);
+            var valoresNuevos = ObtenerValoresAuditoria(existente, eleccion, listaElectoral);
             //obtener solo cambios  
             var cambios = BitacoraHelper.ObtenerSoloCambios(valoresAnteriores, valoresNuevos);
 
@@ -177,11 +209,12 @@ namespace Votaciones.Application.Services.Votaciones
         }
 
         #region Metodos privados
-        private Dictionary<string, object?> ObtenerValoresAuditoria(Candidato candidato, Eleccion eleccion)
+        private Dictionary<string, object?> ObtenerValoresAuditoria(Candidato candidato, Eleccion eleccion, ListaElectoral listaElectoral)
         {
             var valores = BitacoraHelper.ObtenerValores(candidato, CamposAuditablesCandidato.Campos);
 
             BitacoraHelper.AgregarRelacion(valores, "Eleccion", eleccion.NombreEleccion);
+            BitacoraHelper.AgregarRelacion(valores, "ListaElectoral", listaElectoral.NombreLista);
 
             return valores;
         }

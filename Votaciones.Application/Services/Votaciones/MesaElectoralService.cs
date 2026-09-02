@@ -148,7 +148,8 @@ namespace Votaciones.Application.Services.Votaciones
                 throw new ArgumentException("El código de mesa ingresado ya existe en esta elección electoral.");
 
             #region Capturar valores anteriores para bitácora
-            var valoresAnteriores = ObtenerValoresAuditoria(mesaExistente, eleccion, zona);
+            var zonaExistente = await _mesaElectoralRepository.ObtenerZonaAsync(mesaExistente.ZonaId);
+            var valoresAnteriores = ObtenerValoresAuditoria(mesaExistente, eleccion, zonaExistente!);
             #endregion
 
             // actualizar propiedades en la entidad

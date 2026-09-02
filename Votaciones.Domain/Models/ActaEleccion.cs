@@ -21,7 +21,7 @@ namespace Votaciones.Domain.Models
         [ForeignKey(nameof(MesaElectoralId))]
         [JsonIgnore]
         public MesaElectoral? MesaElectoral { get; set; }
-
+        public TipoCandidato TipoCandidato { get; set; }
         [Required]
         public DateTime FechaRegistro { get; set; }
         public Guid UsuarioRegistroId { get; set; }

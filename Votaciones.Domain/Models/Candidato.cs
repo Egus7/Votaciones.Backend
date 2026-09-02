@@ -1,7 +1,7 @@
-﻿
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Text.Json.Serialization;
+using static Votaciones.Domain.Enums.EnumsEleccion;
 
 namespace Votaciones.Domain.Models
 {
@@ -11,18 +11,20 @@ namespace Votaciones.Domain.Models
         [Key]
         public Guid IdCandidato { get; set; }
         public Guid EleccionId { get; set; }
-
         [ForeignKey(nameof(EleccionId))]
         [JsonIgnore]
         public Eleccion? Eleccion { get; set; }
+
+        public Guid ListaElectoralId { get; set; }
+        [ForeignKey(nameof(ListaElectoralId))]
+        [JsonIgnore]
+        public ListaElectoral? ListaElectoral { get; set; }
+
         [Required]
         [MaxLength(200)]
         public string NombreCandidato { get; set; } = string.Empty;
-        [Required]
-        public int NumeroLista { get; set; }
-        [MaxLength(200)]
-        public string? Lista { get; set; }
-        [Required]
+        public TipoCandidato TipoCandidato { get; set; }
+        public int? Orden { get; set; }
         public bool Activo { get; set; }
     }
 }

@@ -16,13 +16,25 @@ namespace Votaciones.Application.Helpers.Audit
             };
         }
 
+        public static class CamposAuditablesListaElectoral
+        {
+            public static readonly string[] Campos =
+            {
+                nameof(ListaElectoral.NombreLista),
+                nameof(ListaElectoral.NumeroLista),
+                nameof(ListaElectoral.Siglas),
+                nameof(ListaElectoral.Jurisdiccion),
+                nameof(ListaElectoral.Activo),
+            };
+        }
+
         public static class CamposAuditablesCandidato
         {
             public static readonly string[] Campos =
             {
                 nameof(Candidato.NombreCandidato),
-                nameof(Candidato.NumeroLista),
-                nameof(Candidato.Lista),
+                nameof(Candidato.TipoCandidato),
+                nameof(Candidato.Orden),
                 nameof(Candidato.Activo),
             };
         }
@@ -42,6 +54,7 @@ namespace Votaciones.Application.Helpers.Audit
         {
             public static readonly string[] Campos =
             {
+                nameof(ActaEleccion.TipoCandidato),
                 nameof(ActaEleccion.FechaRegistro),
                 nameof(ActaEleccion.VotosBlancos),
                 nameof(ActaEleccion.VotosNulos),

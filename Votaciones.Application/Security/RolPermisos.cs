@@ -7,6 +7,10 @@ namespace Votaciones.Application.Security
         public const string EleccionesView = "elecciones.view";
         public const string EleccionesCreate = "elecciones.create";
         public const string EleccionesEdit = "elecciones.edit";
+        // Listas
+        public const string ListasView = "listas.view";
+        public const string ListasCreate = "listas.create";
+        public const string ListasEdit = "listas.edit";
         // Candidatos
         public const string CandidatosView = "candidatos.view";
         public const string CandidatosCreate = "candidatos.create";
@@ -42,6 +46,10 @@ namespace Votaciones.Application.Security
                 EleccionesView,
                 EleccionesCreate,
                 EleccionesEdit,
+
+                ListasView,
+                ListasCreate,
+                ListasEdit,
 
                 CandidatosView,
                 CandidatosCreate,

@@ -9,6 +9,23 @@
             Cerrada = 3
         }
 
+        public enum Jurisdiccion
+        {
+            Nacional = 1,
+            Provincial = 2,
+            Cantonal = 3,
+            Circunscripcion = 4,
+        }
+
+        public enum TipoCandidato
+        {
+            Presidente = 1,
+            Prefecto = 2,
+            Alcalde = 3,
+            ConcejalUrbano = 4,
+            ConcejalRural = 5,
+        }
+
         public enum TipoMesa
         {
             Femenina = 1,

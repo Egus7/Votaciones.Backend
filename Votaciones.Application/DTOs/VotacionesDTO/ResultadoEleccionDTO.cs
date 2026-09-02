@@ -14,6 +14,6 @@ namespace Votaciones.Application.DTOs.VotacionesDTO
         public int TotalVotos { get; set; }
         public int TotalVotosValidos { get; set; }
 
-        public List<ResultadoCandidatoDTO> Resultados { get; set; } = new();
+        public List<ResultadoDetalleDTO> Resultados { get; set; } = new();
     }
 }

@@ -2,6 +2,7 @@
 using Votaciones.Domain.Interfaces.IRepositories;
 using Votaciones.Domain.Models;
 using Votaciones.Infrastructure.Data;
+using static Votaciones.Domain.Enums.EnumsEleccion;
 
 namespace Votaciones.Infrastructure.Persistence.Repositories
 {
@@ -20,6 +21,12 @@ namespace Votaciones.Infrastructure.Persistence.Repositories
         public async Task<Candidato?> ObtenerPorIdAsync(Guid id)
         {
             return await _context.Candidatos.FirstOrDefaultAsync(x => x.IdCandidato == id);
+        }
+
+        public async Task<bool> ExistePorEleccionListaTipoAsync(Guid eleccionId, Guid listaId, TipoCandidato tipoCandidato)
+        {
+            return await _context.Candidatos.AnyAsync(x => x.EleccionId == eleccionId && 
+                x.ListaElectoralId == listaId && x.TipoCandidato == tipoCandidato && x.Activo);
         }
         public async Task AgregarAsync(Candidato candidato)
         {
