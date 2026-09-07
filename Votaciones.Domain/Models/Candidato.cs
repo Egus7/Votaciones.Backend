@@ -15,16 +15,13 @@ namespace Votaciones.Domain.Models
         [JsonIgnore]
         public Eleccion? Eleccion { get; set; }
 
-        public Guid ListaElectoralId { get; set; }
-        [ForeignKey(nameof(ListaElectoralId))]
-        [JsonIgnore]
-        public ListaElectoral? ListaElectoral { get; set; }
-
         [Required]
         [MaxLength(200)]
         public string NombreCandidato { get; set; } = string.Empty;
         public TipoCandidato TipoCandidato { get; set; }
         public int? Orden { get; set; }
         public bool Activo { get; set; }
+        // Listas que respaldan al candidato
+        public List<ListaCandidato> ListaCandidatos { get; set; } = new List<ListaCandidato>();
     }
 }

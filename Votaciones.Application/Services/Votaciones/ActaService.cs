@@ -105,11 +105,14 @@ namespace Votaciones.Application.Services.Votaciones
             var mesaElec = await _mesaElectoralRepository.ObtenerPorIdAsync(acta.MesaElectoralId);
             if (mesaElec == null)
                 throw new ArgumentException("La mesa electoral ingresada no existe");
-
             if (mesaElec.EleccionId != acta.EleccionId)
                 throw new ArgumentException("La mesa electoral no pertenece a la elección.");
             if (!mesaElec.Activa)
                 throw new ArgumentException("La mesa ya está cerrada.");
+
+            // validar tipo de candidato
+            if (!Enum.IsDefined(typeof(TipoCandidato), acta.TipoCandidato))
+                throw new ArgumentException("El tipo de candidato no es válido.");
             // verificar que no tenga acta existente
             var actaExistente = await _actaRepository.ObtenerPorMesaAsync(acta.MesaElectoralId, acta.TipoCandidato);
             if (actaExistente != null)
@@ -160,14 +163,20 @@ namespace Votaciones.Application.Services.Votaciones
                     if (listaElectoral == null)
                         throw new KeyNotFoundException($"La lista electoral no existe.");
                     if (!listaElectoral.Activo)
-                        throw new InvalidOperationException($"La lista electoral '{listaElectoral.NombreLista}' está suspendida.");
-
+                        throw new InvalidOperationException($"La lista electoral '{listaElectoral.NombreLista}' está suspendida.");               
                     // Verificar que la lista participe en esta elección
                     var listaParticipa = await _candidatoRepository.ExistePorEleccionListaTipoAsync(acta.EleccionId, 
                             detalleDto.ListaElectoralId, acta.TipoCandidato);
                     if (!listaParticipa)
                         throw new InvalidOperationException($"La lista electoral '{listaElectoral.NombreLista}' no tiene candidatos " +
                             $"registrados para {acta.TipoCandidato} en esta elección.");
+
+                    // la lista principal es la que se guarda en el detalle
+                    var listasPrincipales = await _candidatoRepository.ExisteListaPrincipalPorEleccionTipoAsync(acta.EleccionId,
+                            detalleDto.ListaElectoralId, acta.TipoCandidato);
+                    if (!listasPrincipales)
+                        throw new InvalidOperationException($"La lista electoral '{listaElectoral.NombreLista}' no es la lista principal " + 
+                                $"de una candidatura de {acta.TipoCandidato} en esta elección.");
 
                     detalleDto.CandidatoId = null;
                 } 
@@ -188,8 +197,13 @@ namespace Votaciones.Application.Services.Votaciones
                     if (candidato.TipoCandidato != acta.TipoCandidato)
                         throw new InvalidOperationException(
                             $"El candidato {candidato.NombreCandidato} no corresponde al tipo de candidatura {acta.TipoCandidato} del acta.");
-                    // La lista viene del candidato
-                    detalleDto.ListaElectoralId = candidato.ListaElectoralId;
+
+                    // Obtener lista principal del candidato
+                    var listasPrincipales = candidato.ListaCandidatos.Where(x => x.ListaPrincipal).ToList();
+                    if (listasPrincipales.Count != 1)
+                        throw new InvalidOperationException($"El candidato '{candidato.NombreCandidato}' debe tener una lista principal");
+                    // La lista principal es la que se guarda en el detalle
+                    detalleDto.ListaElectoralId = listasPrincipales[0].ListaElectoralId;
                 }
             }
             // Calcular total
@@ -229,64 +243,51 @@ namespace Votaciones.Application.Services.Votaciones
                 throw new KeyNotFoundException("El acta no existe.");
 
             if (existente.Estado != EstadoActa.Registrada && existente.Estado != EstadoActa.ConInconsistencia)
-            {
                 throw new InvalidOperationException($"El acta no puede ser modificada en su estado actual {existente.Estado}.");
-            }
+
 
             #region Validar Acta
             // validar Acta
             if (acta.EleccionId == Guid.Empty)
                 throw new ArgumentException("La elección es obligatoria.");
-            // verificar que la Elección exista
-            var eleccion = await _eleccionRepository.ObtenerPorIdAsync(acta.EleccionId);
-            if (eleccion == null)
-                throw new ArgumentException("La elección ingresada no existe");
-            // validarEstadoEleccion
-            if (eleccion.Estado == EstadoEleccion.Cerrada)
-                throw new InvalidOperationException("La elección está cerrada.");
+            if (acta.EleccionId != existente.EleccionId)
+                throw new ArgumentException("No se puede modificar la elección del acta.");
             // validarMesa
             if (acta.MesaElectoralId == Guid.Empty)
                 throw new ArgumentException("La mesa electoral es obligatorio.");
-            // verificar que la mesa exista
-            var mesaElec = await _mesaElectoralRepository.ObtenerPorIdAsync(acta.MesaElectoralId);
-            if (mesaElec == null)
-                throw new ArgumentException("La mesa electoral ingresada no existe");
-            if (mesaElec.EleccionId != acta.EleccionId)
-                throw new ArgumentException("La mesa electoral no pertenece a la elección.");
-            if (!mesaElec.Activa)
-                throw new ArgumentException("La mesa ya está cerrada.");
+            if (acta.MesaElectoralId != existente.MesaElectoralId)
+                throw new ArgumentException("No se puede modificar la mesa electoral del acta.");
+            // validar tipo de candidato
+            if (acta.TipoCandidato != existente.TipoCandidato)
+                throw new ArgumentException("No se puede modificar la dignidad del acta.");
 
-            // verificar que no tenga acta existente
-            var actaExistente = await _actaRepository.ObtenerPorMesaAsync(acta.MesaElectoralId, acta.TipoCandidato, id);
-            if (actaExistente != null)
-                throw new ArgumentException($"La mesa electoral '{mesaElec.CodigoMesa}', ya tiene un acta registrada para {acta.TipoCandidato}.");
             // Validar votos
             if (acta.VotosBlancos < 0)
                 throw new ArgumentException("Los votos blancos no pueden ser negativos.");
             if (acta.VotosNulos < 0)
                 throw new ArgumentException("Los votos nulos no pueden ser negativos.");
-
+            // Validar detalles
             if (acta.ActaDetalles == null || !acta.ActaDetalles.Any())
                 throw new ArgumentException("El acta debe tener al menos un candidato o lista.");
-            // Verificar candidatos o listas repetidas
-            if (acta.TipoCandidato == TipoCandidato.ConcejalUrbano || acta.TipoCandidato == TipoCandidato.ConcejalRural)
-            {
-                if (acta.ActaDetalles.GroupBy(x => x.ListaElectoralId).Any(x => x.Count() > 1))
-                    throw new ArgumentException("No puede existir la misma lista electoral más de una vez en la misma acta.");
-            }
-            else
-            {
-                if (acta.ActaDetalles.GroupBy(x => x.CandidatoId).Any(x => x.Count() > 1))
-                    throw new ArgumentException("No puede existir el mismo candidato más de una vez en la misma acta.");
-            }
+            if (acta.ActaDetalles.Count != existente.ActaDetalles.Count)
+                throw new ArgumentException("No se pueden agregar ni eliminar candidatos o listas del acta.");
             #endregion
+
+            // OBTENER DATOS PARA AUDITORÍA
+            var eleccion = await _eleccionRepository.ObtenerPorIdAsync(existente.EleccionId);
+            if (eleccion == null)
+                throw new KeyNotFoundException("La elección del acta no existe.");
+            var mesaElec = await _mesaElectoralRepository.ObtenerPorIdAsync(existente.MesaElectoralId);
+            if (mesaElec == null)
+                throw new KeyNotFoundException("La mesa electoral del acta no existe.");
 
             //Valores anteriores
             var valoresAnteriores = ObtenerValoresAuditoria(existente, eleccion, mesaElec);
             // Actualizar cabecera
             existente.VotosBlancos = acta.VotosBlancos;
             existente.VotosNulos = acta.VotosNulos;
-            existente.TipoCandidato = acta.TipoCandidato;
+
+            bool esConcejal = existente.TipoCandidato == TipoCandidato.ConcejalUrbano || existente.TipoCandidato == TipoCandidato.ConcejalRural;
 
             // Actualizar detalles
             foreach (var detalleDto in acta.ActaDetalles)
@@ -294,58 +295,32 @@ namespace Votaciones.Application.Services.Votaciones
                 if (detalleDto.Votos < 0)
                     throw new ArgumentException("Los votos no pueden ser negativos.");
 
+                ActaDetalle? detalleExistente;
+
                 // CONCEJALES → voto por lista / plancha
-                if (acta.TipoCandidato == TipoCandidato.ConcejalUrbano || acta.TipoCandidato == TipoCandidato.ConcejalRural)
+                if (esConcejal)
                 {
                     if (detalleDto.ListaElectoralId == Guid.Empty)
                         throw new ArgumentException("La lista electoral es obligatoria.");
-                    //validar listaElectoral
-                    var listaElectoral = await _listaElectoralRepository.ObtenerPorIdAsync(detalleDto.ListaElectoralId);
-                    if (listaElectoral == null)
-                        throw new KeyNotFoundException("La lista electoral no existe.");
-                    if (!listaElectoral.Activo)
-                        throw new InvalidOperationException($"La lista electoral '{listaElectoral.NombreLista}' está suspendida.");
-
-                    // Verificar que la lista participe en esta elección y en esta dignidad
-                    var listaParticipa = await _candidatoRepository.ExistePorEleccionListaTipoAsync(acta.EleccionId,
-                            detalleDto.ListaElectoralId, acta.TipoCandidato);
-                    if (!listaParticipa)
-                        throw new InvalidOperationException($"La lista electoral '{listaElectoral.NombreLista}' " +
-                            $"no tiene candidatos registrados para {acta.TipoCandidato} en esta elección.");
                     // Buscar el detalle existente por lista
-                    var detalle = existente.ActaDetalles.FirstOrDefault(x =>x.ListaElectoralId == detalleDto.ListaElectoralId);
-                    if (detalle == null)
-                        throw new KeyNotFoundException($"La lista electoral '{listaElectoral.NombreLista}' no pertenece al acta.");
+                    detalleExistente = existente.ActaDetalles.FirstOrDefault(x =>x.ListaElectoralId == detalleDto.ListaElectoralId);
+                    if (detalleExistente == null)
+                        throw new KeyNotFoundException($"La lista electoral no pertenece al acta.");
 
-                    detalle.Votos = detalleDto.Votos;
+                    detalleExistente.Votos = detalleDto.Votos;
                     // En concejales no existe candidato individual
-                    detalle.CandidatoId = null;
+                    detalleExistente.CandidatoId = null;
                 } 
                 else
                 {
                     if (detalleDto.CandidatoId == null || detalleDto.CandidatoId == Guid.Empty)
-                        throw new ArgumentException("El candidato es obligatorio.");
-                    // verificar candidato
-                    var candidato = await _candidatoRepository.ObtenerPorIdAsync(detalleDto.CandidatoId ?? Guid.Empty);
-                    if (candidato == null)
-                        throw new KeyNotFoundException($"El candidato no existe.");
-                    if (!candidato.Activo)
-                        throw new InvalidOperationException($"El candidato '{candidato.NombreCandidato}' está inactivo.");
-                    if (candidato.EleccionId != acta.EleccionId)
-                        throw new InvalidOperationException($"El candidato '{candidato.NombreCandidato}' no pertenece a esta elección.");
-                    if (candidato.TipoCandidato != acta.TipoCandidato)
-                        throw new InvalidOperationException($"El candidato '{candidato.NombreCandidato}' " +
-                            $"no corresponde al tipo de candidatura {acta.TipoCandidato} del acta.");
-                    
+                        throw new ArgumentException("El candidato es obligatorio.");                    
                     // Buscar el detalle existente por candidato
-                    var detalle = existente.ActaDetalles.FirstOrDefault(x => x.CandidatoId == candidato.IdCandidato);
+                    detalleExistente = existente.ActaDetalles.FirstOrDefault(x => x.CandidatoId == detalleDto.CandidatoId);
+                    if (detalleExistente == null)
+                        throw new KeyNotFoundException($"El candidato no pertenece al acta.");
 
-                    if (detalle == null)
-                        throw new KeyNotFoundException($"El candidato '{candidato.NombreCandidato}' no pertenece al acta.");
-
-                    detalle.Votos = detalleDto.Votos;
-                    // La lista siempre se obtiene del candidato
-                    detalle.ListaElectoralId = candidato.ListaElectoralId;
+                    detalleExistente.Votos = detalleDto.Votos;
                 }
             }
 
@@ -366,9 +341,9 @@ namespace Votaciones.Application.Services.Votaciones
                     existente.UsuarioModificacionId = _currentService.UsuarioId;
                     existente.FechaModificacion = Fecha.DevolverDatetime(DateTime.UtcNow.ToString("o"));
                     // Bitácora
-                    await _bitacoraService.RegistrarBitacoraAsync("UPDATE", tabla, acta.IdActa.ToString(),
-                        $"Acta modificada para la mesa '{mesaElec.CodigoMesa}'.", acta.EleccionId, _currentService.UsuarioId, 
-                        cambios.Anteriores, cambios.Nuevos);
+                    await _bitacoraService.RegistrarBitacoraAsync("UPDATE", tabla, existente.IdActa.ToString(),
+                        $"Acta modificada para la mesa '{mesaElec.CodigoMesa}-{acta.TipoCandidato}'.", acta.EleccionId, 
+                        _currentService.UsuarioId, cambios.Anteriores, cambios.Nuevos);
                 }
 
                 await _unitOfWork.SaveChangesAsync();
@@ -468,6 +443,7 @@ namespace Votaciones.Application.Services.Votaciones
             {
                 valores["Detalles"] = acta.ActaDetalles
                 .Select(d => new { Candidato = d.Candidato?.NombreCandidato, 
+                    Lista = d.ListaElectoral?.NombreLista, NumeroLista = d.ListaElectoral?.NumeroLista,
                     Votos = d.Votos })
                 .ToList();
             }

@@ -10,6 +10,7 @@ namespace Votaciones.Infrastructure.Data
         public DbSet<Eleccion> Elecciones { get; set; }
         public DbSet<ListaElectoral> ListasElectorales { get; set; }
         public DbSet<Candidato> Candidatos { get; set; }
+        public DbSet<ListaCandidato> ListaCandidatos { get; set; }
         public DbSet<ActaEleccion> ActasEleccion { get; set; }
         public DbSet<ActaDetalle> ActasDetalle { get; set; }
         public DbSet<MesaElectoral> MesasElectorales { get; set; }
@@ -68,12 +69,20 @@ namespace Votaciones.Infrastructure.Data
                 .WithMany()
                 .HasForeignKey(c => c.EleccionId)
                 .OnDelete(DeleteBehavior.Restrict); // No se permite eliminar una eleccion si tiene candidatos asociados
-            // Relacion Candidatos - Lista
-            modelBuilder.Entity<Candidato>()
-                .HasOne(c => c.ListaElectoral)
+
+            // Relacion ListaCandidato - Candidato
+            modelBuilder.Entity<ListaCandidato>()
+                .HasOne(x => x.Candidato)
+                .WithMany(x => x.ListaCandidatos)
+                .HasForeignKey(x => x.CandidatoId)
+                .OnDelete(DeleteBehavior.Cascade); // Si se elimina un candidato, se eliminan sus listas de candidatos asociados
+
+            // Relacion ListaCandidato - ListaElectoral
+            modelBuilder.Entity<ListaCandidato>()
+                .HasOne(x => x.ListaElectoral)
                 .WithMany()
-                .HasForeignKey(c => c.ListaElectoralId)
-                .OnDelete(DeleteBehavior.Restrict); // No se permite eliminar una lista si tiene candidatos asociados
+                .HasForeignKey(x => x.ListaElectoralId)
+                .OnDelete(DeleteBehavior.Restrict); // No se permite eliminar una lista electoral si tiene lista de candidatos asociados
 
             // Relacion ActaCab - MesaElectoral
             modelBuilder.Entity<ActaEleccion>()

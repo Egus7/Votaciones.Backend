@@ -39,6 +39,11 @@
             Validada = 4,
             Anulada = 5      
         }
+        public enum TipoResultado
+        {
+            Oficial = 1,
+            Preliminar = 2
+        }
 
     }
 }

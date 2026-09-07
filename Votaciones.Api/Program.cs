@@ -64,7 +64,16 @@ builder.Services.AddOpenApi(options =>
 
 // Agregar conexión a la base de datos
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+   options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+// builder.Services.AddDbContext<AppDbContext>(options =>
+// {
+//     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"));
+
+//     options.EnableDetailedErrors();
+//     options.EnableSensitiveDataLogging();
+
+//     options.LogTo(Console.WriteLine, LogLevel.Information);
+// });
 
 // AutoMapper
 builder.Services.AddAutoMapper(cfg => { cfg.AddProfile<AutoMapperProfiles>(); });

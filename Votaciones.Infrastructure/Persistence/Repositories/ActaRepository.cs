@@ -21,8 +21,9 @@ namespace Votaciones.Infrastructure.Persistence.Repositories
 
         public async Task<ActaEleccion?> ObtenerPorIdAsync(Guid id)
         {
-            return await _context.ActasEleccion.Include(x => x.ActaDetalles)
-                .ThenInclude(x => x.Candidato).FirstOrDefaultAsync(x => x.IdActa == id);
+            return await _context.ActasEleccion.Include(x => x.ActaDetalles).ThenInclude(x => x.Candidato)
+                .Include(x => x.ActaDetalles).ThenInclude(x => x.ListaElectoral)
+                .FirstOrDefaultAsync(x => x.IdActa == id);
         }
 
         public async Task<ActaEleccion?> ObtenerPorMesaAsync(Guid mesaId, TipoCandidato tipoCandidato, Guid? idActaExcluir = null)

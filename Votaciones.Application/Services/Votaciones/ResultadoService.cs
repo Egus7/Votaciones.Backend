@@ -16,17 +16,17 @@ namespace Votaciones.Application.Services.Votaciones
             _resultadoRepository = resultadoRepository;
         }
 
-        public async Task<ResultadoEleccionDTO> ObtenerPorEleccionAsync(Guid eleccionId, TipoCandidato tipoCandidato)
+        public async Task<ResultadoEleccionDTO> ObtenerPorEleccionAsync(Guid eleccionId, TipoCandidato tipoCandidato, TipoResultado tipoResultado)
         {
             var mesasQuery = _resultadoRepository.ObtenerMesasQuery().Where(x => x.EleccionId == eleccionId);
 
             var actasQuery = _resultadoRepository.ObtenerActasQuery().Where(x => x.EleccionId == eleccionId 
                 && x.TipoCandidato == tipoCandidato);
 
-            return await CalcularResultadosAsync(mesasQuery, actasQuery, tipoCandidato);
+            return await CalcularResultadosAsync(mesasQuery, actasQuery, tipoCandidato, tipoResultado);
         }
 
-        public async Task<ResultadoEleccionDTO> ObtenerPorCantonAsync(Guid eleccionId, Guid cantonId, TipoCandidato tipoCandidato)
+        public async Task<ResultadoEleccionDTO> ObtenerPorCantonAsync(Guid eleccionId, Guid cantonId, TipoCandidato tipoCandidato, TipoResultado tipoResultado)
         {
             var mesasQuery = _resultadoRepository.ObtenerMesasQuery()
                 .Where(x => x.EleccionId == eleccionId && x.Zona!.Parroquia!.CantonId == cantonId);
@@ -35,10 +35,10 @@ namespace Votaciones.Application.Services.Votaciones
                 .Where(x => x.EleccionId == eleccionId && x.MesaElectoral!.Zona!.Parroquia!.CantonId == cantonId 
                     && x.TipoCandidato == tipoCandidato);
 
-            return await CalcularResultadosAsync(mesasQuery, actasQuery, tipoCandidato);
+            return await CalcularResultadosAsync(mesasQuery, actasQuery, tipoCandidato, tipoResultado);
         }
 
-        public async Task<ResultadoEleccionDTO> ObtenerPorParroquiaAsync(Guid eleccionId, Guid parroquiaId, TipoCandidato tipoCandidato)
+        public async Task<ResultadoEleccionDTO> ObtenerPorParroquiaAsync(Guid eleccionId, Guid parroquiaId, TipoCandidato tipoCandidato, TipoResultado tipoResultado)
         {
             var mesasQuery = _resultadoRepository.ObtenerMesasQuery()
                 .Where(x => x.EleccionId == eleccionId && x.Zona!.ParroquiaId == parroquiaId);
@@ -47,10 +47,10 @@ namespace Votaciones.Application.Services.Votaciones
                 .Where(x => x.EleccionId == eleccionId && x.MesaElectoral!.Zona!.ParroquiaId == parroquiaId 
                     && x.TipoCandidato == tipoCandidato);
 
-            return await CalcularResultadosAsync(mesasQuery, actasQuery, tipoCandidato);
+            return await CalcularResultadosAsync(mesasQuery, actasQuery, tipoCandidato, tipoResultado);
         }
 
-        public async Task<ResultadoEleccionDTO> ObtenerPorZonaAsync(Guid eleccionId, Guid zonaId, TipoCandidato tipoCandidato)
+        public async Task<ResultadoEleccionDTO> ObtenerPorZonaAsync(Guid eleccionId, Guid zonaId, TipoCandidato tipoCandidato, TipoResultado tipoResultado)
         {
             var mesasQuery = _resultadoRepository.ObtenerMesasQuery()
                 .Where(x => x.EleccionId == eleccionId && x.ZonaId == zonaId);
@@ -59,12 +59,12 @@ namespace Votaciones.Application.Services.Votaciones
                 .Where(x => x.EleccionId == eleccionId && x.MesaElectoral!.ZonaId == zonaId 
                     && x.TipoCandidato == tipoCandidato);
 
-            return await CalcularResultadosAsync(mesasQuery, actasQuery, tipoCandidato);
+            return await CalcularResultadosAsync(mesasQuery, actasQuery, tipoCandidato, tipoResultado);
         }
 
         #region Metodos privados
         private async Task<ResultadoEleccionDTO> CalcularResultadosAsync(IQueryable<MesaElectoral> mesasQuery, 
-            IQueryable<ActaEleccion> actasQuery, TipoCandidato tipoCandidato)
+            IQueryable<ActaEleccion> actasQuery, TipoCandidato tipoCandidato, TipoResultado tipoResultado)
         {
             if (!Enum.IsDefined(typeof(TipoCandidato), tipoCandidato))
                 throw new InvalidOperationException("El tipo de candidatura ingresada no es válida.");
@@ -78,21 +78,33 @@ namespace Votaciones.Application.Services.Votaciones
             resultado.MesasEnRevision = await actasQuery.CountAsync(x => x.Estado == EstadoActa.EnRevision);
             resultado.MesasConInconsistencia = await actasQuery.CountAsync(x => x.Estado == EstadoActa.ConInconsistencia);
             resultado.MesasValidadas = await actasQuery.CountAsync(x => x.Estado == EstadoActa.Validada);
-            // Solamente actas validadas participan en el resultado electoral
-            var actasValidadas = actasQuery.Where(x => x.Estado == EstadoActa.Validada);
-            resultado.TotalVotosBlancos = await actasValidadas.SumAsync(x => x.VotosBlancos);
-            resultado.TotalVotosNulos = await actasValidadas.SumAsync(x => x.VotosNulos);
-            resultado.TotalVotos = await actasValidadas.SumAsync(x => x.TotalVotos);
-            resultado.TotalVotosValidos = await actasValidadas.SelectMany(x => x.ActaDetalles).SumAsync(x => x.Votos);
+            // Actas que participan en el resultado
+            IQueryable<ActaEleccion> actasResultado;
+            switch (tipoResultado)
+            {
+                case TipoResultado.Oficial:
+                    actasResultado = actasQuery.Where(x => x.Estado == EstadoActa.Validada);
+                    break;
+                case TipoResultado.Preliminar:
+                    actasResultado = actasQuery.Where(x => x.Estado == EstadoActa.Registrada || x.Estado == EstadoActa.Validada);
+                    break;
+                default:
+                    throw new InvalidOperationException("El tipo de resultado ingresado no es válido.");
+            }
+            // Totales
+            resultado.TotalVotosBlancos = await actasResultado.SumAsync(x => x.VotosBlancos);
+            resultado.TotalVotosNulos = await actasResultado.SumAsync(x => x.VotosNulos);
+            resultado.TotalVotos = await actasResultado.SumAsync(x => x.TotalVotos);
+            resultado.TotalVotosValidos = await actasResultado.SelectMany(x => x.ActaDetalles).SumAsync(x => x.Votos);
 
             //resultados
             if (tipoCandidato == TipoCandidato.ConcejalUrbano || tipoCandidato == TipoCandidato.ConcejalRural)
             {
-                resultado.Resultados = await ObtenerResultadosPorListaAsync(actasValidadas);
+                resultado.Resultados = await ObtenerResultadosPorListaAsync(actasResultado);
             }
             else
             {
-                resultado.Resultados = await ObtenerResultadosPorCandidatoAsync(actasValidadas);
+                resultado.Resultados = await ObtenerResultadosPorCandidatoAsync(actasResultado);
             }
             // Calcular porcentajes
             if (resultado.TotalVotosValidos > 0)
@@ -114,9 +126,9 @@ namespace Votaciones.Application.Services.Votaciones
                 {
                     x.CandidatoId,
                     x.Candidato!.NombreCandidato,
-                    x.Candidato.ListaElectoralId,
-                    x.Candidato.ListaElectoral!.NombreLista,
-                    x.Candidato.ListaElectoral.NumeroLista
+                    x.ListaElectoralId,
+                    x.ListaElectoral!.NombreLista,
+                    x.ListaElectoral.NumeroLista
                 })
                 .Select(g => new ResultadoDetalleDTO
                 {

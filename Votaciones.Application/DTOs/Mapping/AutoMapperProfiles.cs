@@ -22,8 +22,14 @@ namespace Votaciones.Application.DTOs.Mapping
             CreateMap<Candidato, CandidatoDTO>()
                 .ForMember(dest => dest.Eleccion, opt => opt.MapFrom(src => src.Eleccion!.NombreEleccion))
                 .ForMember(dest => dest.DescripcionEleccion, opt => opt.MapFrom(src => src.Eleccion!.Descripcion))
-                .ForMember(dest => dest.Lista, opt => opt.MapFrom(src => src.ListaElectoral!.NombreLista))
-                .ForMember(dest => dest.NumeroLista, opt => opt.MapFrom(src => src.ListaElectoral!.NumeroLista));
+                // Detalle
+                .ForMember(dest => dest.ListasCandidato, opt => opt.MapFrom(src => src.ListaCandidatos));
+
+            // ListaCandidato
+            CreateMap<ListaCandidato, ListaCandidatoDTO>()
+                .ForMember(dest => dest.NumeroLista, opt => opt.MapFrom(src => src.ListaElectoral!.NumeroLista))
+                .ForMember(dest => dest.NombreLista, opt => opt.MapFrom(src => src.ListaElectoral!.NombreLista))
+                .ForMember(dest => dest.EsPrincipal, opt => opt.MapFrom(src => src.ListaPrincipal));
 
             //ActaEleccion
             CreateMap<ActaEleccion, ActaDTO>()
@@ -40,8 +46,8 @@ namespace Votaciones.Application.DTOs.Mapping
             //Acta Detalle
             CreateMap<ActaDetalle, ActaDetalleDTO>()
                 .ForMember(dest => dest.Candidato, opt => opt.MapFrom(src => src.Candidato!.NombreCandidato))
-                .ForMember(dest => dest.Lista, opt => opt.MapFrom(src => src.Candidato!.ListaElectoral!.NombreLista))
-                .ForMember(dest => dest.NumeroLista, opt => opt.MapFrom(src => src.Candidato!.ListaElectoral!.NumeroLista));
+                .ForMember(dest => dest.Lista, opt => opt.MapFrom(src => src.ListaElectoral!.NombreLista))
+                .ForMember(dest => dest.NumeroLista, opt => opt.MapFrom(src => src.ListaElectoral!.NumeroLista));
 
             //Usuario
             CreateMap<AdmUsuario, UsuarioDTO>()
