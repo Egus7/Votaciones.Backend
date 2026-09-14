@@ -16,50 +16,45 @@ using Votaciones.Infrastructure.ServiceRegistration;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Habilitar CORS (Para que Angular pueda acceder a la API)
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll",
+        policy => policy.AllowAnyOrigin()
+                        .AllowAnyMethod()
+                        .AllowAnyMethod()
+                        .AllowAnyHeader());
+});
 // Add services to the container.
 builder.Services.AddControllers().AddJsonOptions(options =>
 {
     options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
 });
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi(options =>
+builder.Services.AddSwaggerGen(options =>
 {
-    // Registrar esquema Bearer
-    options.AddDocumentTransformer((document, context, cancellationToken) =>
+    options.SwaggerDoc("v1", new OpenApiInfo
     {
-        document.Components ??= new OpenApiComponents();
-
-        document.Components.SecuritySchemes ??= new Dictionary<string, IOpenApiSecurityScheme>();
-
-        document.Components.SecuritySchemes["Bearer"] =
-            new OpenApiSecurityScheme
-            {
-                Type = SecuritySchemeType.Http,
-                Scheme = "Bearer",
-                In = ParameterLocation.Header,
-                BearerFormat = "JWT",
-                Description = "Ingrese el token JWT."
-            };
-        return Task.CompletedTask;
+        Title = "Votaciones API",
+        Version = "v1"
     });
-    // Aplicar Bearer a endpoints con [Authorize]
-    options.AddOperationTransformer((operation, context, cancellationToken) =>
-    {
-        var metadata = context.Description.ActionDescriptor.EndpointMetadata;
 
-        var tieneAuthorize = metadata.OfType<AuthorizeAttribute>().Any();
-        
-        if (tieneAuthorize)
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        In = ParameterLocation.Header,
+        Description = "Ingrese el token JWT."
+    });
+
+    options.AddSecurityRequirement(document =>
+        new OpenApiSecurityRequirement
         {
-            operation.Security ??= [];
-
-            operation.Security.Add(new OpenApiSecurityRequirement
-            {
-                [new OpenApiSecuritySchemeReference("Bearer", context.Document)] = []
-            });
-        }
-        return Task.CompletedTask;
-    });
+            [new OpenApiSecuritySchemeReference("Bearer", document)] =
+                 new List<string>()
+        });
 });
 
 // Agregar conexión a la base de datos
@@ -141,13 +136,15 @@ builder.Services.AddScoped<ICurrentService, CurrentUserService>();
 
 var app = builder.Build();
 
+app.UseCors("AllowAll");
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    app.UseSwagger();
     app.UseSwaggerUI(options =>
     {
-        options.SwaggerEndpoint("/openapi/v1.json", "Mi API v1");
+        options.SwaggerEndpoint("/swagger/v1/swagger.json", "Mi API v1");
     });
 }
 
