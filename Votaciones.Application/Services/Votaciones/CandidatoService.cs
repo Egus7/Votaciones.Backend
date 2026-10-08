@@ -68,10 +68,12 @@ namespace Votaciones.Application.Services.Votaciones
             var totalRegistros = await query.CountAsync();
 
             var items = await query
-                .OrderBy(x => x.ListaCandidatos.Where(l => l.ListaPrincipal)
-                    .Select(l => l.ListaElectoral!.NumeroLista).FirstOrDefault())
+                .OrderBy(x => x.ListaCandidatos.Where(l => l.ListaPrincipal).Select(l => l.ListaElectoral!.NumeroLista).FirstOrDefault())
                 .ThenBy(x => x.TipoCandidato)
                 .ThenBy(x => x.Orden)
+                .ThenBy(x => x.ProvinciaId)
+                .ThenBy(x => x.CantonId)
+                .ThenBy(x => x.ParroquiaId)
                 .ThenBy(x => x.NombreCandidato)
                 .Skip((pagina - 1) * pageSize)
                 .Take(pageSize)
@@ -99,42 +101,10 @@ namespace Votaciones.Application.Services.Votaciones
 
         public async Task<Candidato> CrearAsync(Candidato candidato)
         {
-            if (string.IsNullOrWhiteSpace(candidato.NombreCandidato))
-                throw new ArgumentException("El nombre del candidato es obligatorio.");
-            // verifcar eleccionId no sea Guid.Empty
-            if (candidato.EleccionId == Guid.Empty)
-                throw new ArgumentException("La elección es obligatoria.");
-            // verificar que la Elección exista
-            var eleccion = await _eleccionRepository.ObtenerPorIdAsync(candidato.EleccionId);
-            if (eleccion == null)
-                throw new ArgumentException("La elección ingresada no existe");
-            // validar estadoEleccion
-            if (eleccion.Estado == EstadoEleccion.Cerrada)
-                throw new InvalidOperationException("La elección está cerrada.");
-            //validar tipoCandidato
-            if (!Enum.IsDefined(typeof(TipoCandidato), candidato.TipoCandidato))
-                throw new ArgumentException("El tipo de candidato es inválido.");
-
-            // verificar que se seleccione al menos una lista electoral para candidato
-            if (candidato.ListaCandidatos == null || !candidato.ListaCandidatos.Any())
-                throw new ArgumentException("Debe seleccionar al menos una lista electoral para el concejal.");
-            // Debe existir exactamente una lista principal
-            if (!candidato.ListaCandidatos.Any(x => x.ListaPrincipal))
-                throw new ArgumentException("Debe seleccionar una lista principal.");
-            // Validar que no haya más de una lista principal
-            if (candidato.ListaCandidatos.Count(x => x.ListaPrincipal) > 1)
-                throw new InvalidOperationException("Solo puede haber una lista principal para el candidato.");
-            // Evitar que la misma lista se envíe dos veces
-            if (candidato.ListaCandidatos.GroupBy(x => x.ListaElectoralId).Any(g => g.Count() > 1))
-                throw new InvalidOperationException("No se puede asociar la misma lista electoral más de una vez.");
-            // Validaciones específicas para concejales
+            var eleccion = await ValidarDatosCandidato(candidato);
+            var listasElectorales = await ValidarListasAsync(candidato);
+            // EsConcejal
             bool esConcejal = candidato.TipoCandidato == TipoCandidato.ConcejalUrbano || candidato.TipoCandidato == TipoCandidato.ConcejalRural;
-            //validacion para concejales, que no se repita el orden en la misma lista y elección
-            if (esConcejal)
-            {
-                if (candidato.Orden == null || candidato.Orden <= 0)
-                    throw new ArgumentException("El orden del candidato para concejal es obligatorio.");
-            }
 
             candidato.IdCandidato = Guid.NewGuid();
             candidato.Activo = true;
@@ -142,15 +112,7 @@ namespace Votaciones.Application.Services.Votaciones
             // VALIDAR Y PREPARAR LISTAS
             foreach (var lista in candidato.ListaCandidatos)
             {
-                if (lista.ListaElectoralId == Guid.Empty)
-                    throw new ArgumentException("La lista electoral es obligatoria.");
-
-                var listaElectoral = await _listaElectoralRepository.ObtenerPorIdAsync(lista.ListaElectoralId);
-                if (listaElectoral == null)
-                    throw new ArgumentException("La lista electoral ingresada no existe.");
-                if (!listaElectoral.Activo)
-                    throw new InvalidOperationException($"La lista electoral '{listaElectoral.NombreLista}' está suspendida.");
-
+                var listaElectoral = listasElectorales[lista.ListaElectoralId];
                 //Alcalde
                 if (!esConcejal)
                 {
@@ -175,11 +137,6 @@ namespace Votaciones.Application.Services.Votaciones
 
                 lista.IdListaCandidato = Guid.NewGuid();
                 lista.CandidatoId = candidato.IdCandidato;
-            }
-            // si el candidato (alcalde o concejal) tiene una sola lista, esa lista debe ser la principal
-            if (candidato.ListaCandidatos.Count == 1)
-            {
-                candidato.ListaCandidatos[0].ListaPrincipal = true;
             }
 
             await _unitOfWork.BeginTransactionAsync();
@@ -207,40 +164,149 @@ namespace Votaciones.Application.Services.Votaciones
             }
         }
 
+        public async Task<List<Candidato>> CrearVariosAsync(List<Candidato> candidatos)
+        {
+            if (candidatos == null || !candidatos.Any())
+                throw new ArgumentException("Debe ingresar al menos un candidato.");
+            // VALIDAR QUE SEA PARA CONCEJALES
+            if (candidatos.Any(x => x.TipoCandidato != TipoCandidato.ConcejalUrbano && 
+                x.TipoCandidato != TipoCandidato.ConcejalRural))
+            {
+                throw new ArgumentException("El registro múltiple solo está permitido para concejales.");
+            }
+
+            // TODOS DEBEN SER DE LA MISMA ELECCIÓN
+            var eleccionId = candidatos.First().EleccionId;
+            if (candidatos.Any(x => x.EleccionId != eleccionId))
+                throw new ArgumentException("Todos los candidatos deben pertenecer a la misma elección.");
+
+            var tipoCandidato = candidatos.First().TipoCandidato;
+            if (candidatos.Any(x => x.TipoCandidato != tipoCandidato))
+                throw new ArgumentException("Todos los candidatos deben ser del mismo tipo.");
+
+            // VALIDAR CADA CANDIDATO
+            Eleccion? eleccion = null;
+            foreach (var candidato in candidatos)
+            {
+                eleccion = await ValidarDatosCandidato(candidato);
+                await ValidarListasAsync(candidato);
+            }
+
+            // MISMO ÁMBITO TERRITORIAL
+            var provinciaId = candidatos.First().ProvinciaId;
+            var cantonId = candidatos.First().CantonId;
+            var parroquiaId = candidatos.First().ParroquiaId;
+
+            if (candidatos.Any(x => x.ProvinciaId != provinciaId || x.CantonId != cantonId || x.ParroquiaId != parroquiaId))
+                throw new ArgumentException("Todos los candidatos deben pertenecer a la misma zona.");
+
+            // MISMAS LISTAS
+            var listasReferencia = candidatos.First().ListaCandidatos.Select(x => x.ListaElectoralId)
+                .OrderBy(x => x).ToList();
+
+            foreach (var candidato in candidatos)
+            {
+                var listasCandidato = candidato.ListaCandidatos
+                    .Select(x => x.ListaElectoralId)
+                    .OrderBy(x => x)
+                    .ToList();
+
+                if (!listasCandidato.SequenceEqual(listasReferencia))
+                    throw new InvalidOperationException("Todos los candidatos deben pertenecer a las mismas listas electorales.");
+            }
+
+            // MISMA LISTA PRINCIPAL
+            var listaPrincipalReferencia = candidatos.First()
+                .ListaCandidatos.First(x => x.ListaPrincipal).ListaElectoralId;
+
+            foreach (var candidato in candidatos)
+            {
+                var listaPrincipal = candidato.ListaCandidatos
+                    .First(x => x.ListaPrincipal)
+                    .ListaElectoralId;
+
+                if (listaPrincipal != listaPrincipalReferencia)
+                {
+                    throw new InvalidOperationException("Todos los candidatos deben tener la misma lista principal.");
+                }
+            }
+
+            // NO REPETIR ORDEN DENTRO DE LA CARGA
+            if (candidatos.GroupBy(x => x.Orden).Any(g => g.Count() > 1))
+                throw new InvalidOperationException("No puede existir más de un candidato con el mismo orden.");
+            // VALIDAR ORDEN
+            foreach (var candidato in candidatos)
+            {
+                foreach (var lista in candidato.ListaCandidatos)
+                {
+                    var existeOrden = await _candidatoRepository.ExisteOrdenPorEleccionListaTipoAsync(candidato.EleccionId, lista.ListaElectoralId, 
+                        candidato.TipoCandidato, candidato.Orden!.Value, candidato.ProvinciaId, candidato.CantonId, candidato.ParroquiaId);
+
+                    if (existeOrden)
+                        throw new InvalidOperationException($"El orden '{candidato.Orden}' ya está asignado " +
+                            $"para la lista electoral seleccionada.");
+                }
+            }
+
+            // PREPARAR CANDIDATOS
+            foreach (var candidato in candidatos)
+            {
+                candidato.IdCandidato = Guid.NewGuid();
+                candidato.Activo = true;
+
+                foreach (var lista in candidato.ListaCandidatos)
+                {
+                    lista.IdListaCandidato = Guid.NewGuid();
+                    lista.CandidatoId = candidato.IdCandidato;
+                }
+            }
+            // UNA SOLA TRANSACCIÓN
+            await _unitOfWork.BeginTransactionAsync();
+
+            try
+            {
+                foreach (var candidato in candidatos)
+                {
+                    await _candidatoRepository.AgregarAsync(candidato);
+                }
+
+                #region Registrar bitacora
+                
+                // UNA SOLA BITÁCORA
+                var cantidad = candidatos.Count;
+                var listaPrincipal = candidatos.First().ListaCandidatos.First(x => x.ListaPrincipal);
+                var descripcion = $"Se registraron {cantidad} candidatos de tipo '{tipoCandidato}' para la lista electoral " +
+                        $"'{listaPrincipal.ListaElectoral?.NombreLista}'.";
+                //valores nuevos
+                var valoresNuevos = await ObtenerValoresAuditoriaVariosAsync(candidatos, eleccion!);
+
+                await _bitacoraService.RegistrarBitacoraAsync("INSERT", tabla, null, descripcion, eleccionId, _currentService.UsuarioId, 
+                    null, valoresNuevos);
+                #endregion
+
+                await _unitOfWork.SaveChangesAsync();
+                await _unitOfWork.CommitTransactionAsync();
+                return candidatos;
+            }
+            catch
+            {
+                await _unitOfWork.RollbackTransactionAsync();
+                throw;
+            }
+        }
+
         public async Task<Candidato> ActualizarAsync(Guid id, Candidato candidato)
         {
             var existente = await _candidatoRepository.ObtenerPorIdAsync(id);
             if (existente == null)
                 throw new KeyNotFoundException("El candidato no existe.");
 
-            if (string.IsNullOrWhiteSpace(candidato.NombreCandidato))
-                throw new ArgumentException("El nombre del candidato es obligatorio.");
-            // verifcar que la Elección exista
-            var eleccion = await _eleccionRepository.ObtenerPorIdAsync(candidato.EleccionId);
-            if (eleccion == null)
-                throw new KeyNotFoundException("La elección del candidato no existe.");
-            // validarEstadoEleccion
-            if (eleccion.Estado == EstadoEleccion.Cerrada)
-                throw new InvalidOperationException("La elección está cerrada.");
-            // No permitir cambiar el candidato a otra elección
+            var eleccion = await ValidarDatosCandidato(candidato);
+            // No permitir cambiar la elección
             if (existente.EleccionId != candidato.EleccionId)
                 throw new InvalidOperationException("No se puede cambiar la elección del candidato.");
-            // validar tipoCandidato
-            if (!Enum.IsDefined(typeof(TipoCandidato), candidato.TipoCandidato))
-                throw new ArgumentException("El tipo de candidato es inválido.");
-
-            // Debe existir al menos una lista
-            if (candidato.ListaCandidatos == null || !candidato.ListaCandidatos.Any())
-                throw new ArgumentException("Debe seleccionar al menos una lista electoral.");
-            // Debe existir exactamente una lista principal
-            if (!candidato.ListaCandidatos.Any(x => x.ListaPrincipal))
-                throw new ArgumentException("Debe seleccionar una lista principal.");
-            if (candidato.ListaCandidatos.Count(x => x.ListaPrincipal) > 1)
-                throw new InvalidOperationException("Solo puede haber una lista principal para el candidato.");
-            // No permitir la misma lista dos veces
-            if (candidato.ListaCandidatos.GroupBy(x => x.ListaElectoralId).Any(g => g.Count() > 1))
-                throw new InvalidOperationException("No se puede asociar la misma lista electoral más de una vez.");
-
+            // validar listas electorales
+            var listasElectorales = await ValidarListasAsync(candidato);
             // Validaciones específicas para concejales
             bool esConcejal = candidato.TipoCandidato == TipoCandidato.ConcejalUrbano || candidato.TipoCandidato == TipoCandidato.ConcejalRural;
             bool tieneActas = false;
@@ -301,28 +367,11 @@ namespace Votaciones.Application.Services.Votaciones
                     }
                 }
             }
-            // validar si es concejal tiene que tener orden
-            if (esConcejal)
-            {
-                if (candidato.Orden == null || candidato.Orden <= 0)
-                    throw new ArgumentException("El orden del candidato para concejal es obligatorio.");
-            }
-
             // VALIDAR LISTAS Y GUARDARLAS PARA NO VOLVER A CONSULTAR
-            var listasElectoralesAuditoria = new Dictionary<Guid, ListaElectoral>();
             // recorrer las listas del candidato y validar que existan y estén activas
             foreach (var lista in candidato.ListaCandidatos)
             {
-                if (lista.ListaElectoralId == Guid.Empty)
-                    throw new ArgumentException("La lista electoral es obligatoria.");
-                var listaElectoral = await _listaElectoralRepository.ObtenerPorIdAsync(lista.ListaElectoralId);
-                if (listaElectoral == null)
-                    throw new ArgumentException("La lista electoral ingresada no existe.");
-                if (!listaElectoral.Activo)
-                    throw new InvalidOperationException($"La lista electoral '{listaElectoral.NombreLista}' está suspendida.");
-
-                // Guardamos la lista para reutilizarla posteriormente
-                listasElectoralesAuditoria[lista.ListaElectoralId] = listaElectoral;
+                var listaElectoral = listasElectorales[lista.ListaElectoralId];
 
                 // validar que no exista otro candidato del mismo tipo para la misma elección y lista
                 if (!esConcejal)
@@ -376,7 +425,7 @@ namespace Votaciones.Application.Services.Votaciones
                         CandidatoId = existente.IdCandidato,
                         ListaElectoralId = lista.ListaElectoralId,
                         ListaPrincipal = lista.ListaPrincipal,
-                        ListaElectoral = listasElectoralesAuditoria[lista.ListaElectoralId]  // Asignar la lista electoral previamente obtenida
+                        ListaElectoral = listasElectorales[lista.ListaElectoralId]  // Asignar la lista electoral previamente obtenida
                     });
 
                 }
@@ -441,6 +490,79 @@ namespace Votaciones.Application.Services.Votaciones
         }
 
         #region Metodos privados
+        private async Task<Eleccion> ValidarDatosCandidato(Candidato candidato)
+        {
+            if (string.IsNullOrWhiteSpace(candidato.NombreCandidato))
+                throw new ArgumentException("El nombre del candidato es obligatorio.");
+
+            if (candidato.EleccionId == Guid.Empty)
+                throw new ArgumentException("La elección es obligatoria.");
+
+            var eleccion = await _eleccionRepository.ObtenerPorIdAsync(candidato.EleccionId);
+            if (eleccion == null)
+                throw new ArgumentException("La elección ingresada no existe.");
+
+            if (eleccion.Estado == EstadoEleccion.Cerrada)
+                throw new InvalidOperationException("La elección está cerrada.");
+
+            if (!Enum.IsDefined(typeof(TipoCandidato), candidato.TipoCandidato))
+            {
+                throw new ArgumentException("El tipo de candidato es inválido.");
+            }
+
+            // Debe existir al menos una lista
+            if (candidato.ListaCandidatos == null || !candidato.ListaCandidatos.Any())
+            {
+                throw new ArgumentException("Debe seleccionar al menos una lista electoral.");
+            }
+
+            // Debe existir exactamente una lista principal
+            if (!candidato.ListaCandidatos.Any(x => x.ListaPrincipal))
+                throw new ArgumentException("Debe seleccionar una lista principal.");
+
+            if (candidato.ListaCandidatos.Count(x => x.ListaPrincipal) > 1)
+                throw new InvalidOperationException("Solo puede haber una lista principal para el candidato.");
+
+            // No permitir la misma lista dos veces
+            if (candidato.ListaCandidatos.GroupBy(x => x.ListaElectoralId).Any(g => g.Count() > 1))
+            {
+                throw new InvalidOperationException("No se puede asociar la misma lista electoral más de una vez.");
+            }
+
+            // Validación específica de concejales
+            bool esConcejal = candidato.TipoCandidato == TipoCandidato.ConcejalUrbano || candidato.TipoCandidato == TipoCandidato.ConcejalRural;
+            if (esConcejal)
+            {
+                if (!candidato.Orden.HasValue || candidato.Orden <= 0)
+                {
+                    throw new ArgumentException("El orden del candidato es obligatorio.");
+                }
+            }
+            return eleccion;
+        }
+        private async Task<Dictionary<Guid, ListaElectoral>> ValidarListasAsync(Candidato candidato)
+        {
+            var listas = new Dictionary<Guid, ListaElectoral>();
+            foreach (var lista in candidato.ListaCandidatos)
+            {
+                if (lista.ListaElectoralId == Guid.Empty)
+                    throw new ArgumentException("La lista electoral es obligatoria.");
+                var listaElectoral = await _listaElectoralRepository.ObtenerPorIdAsync(lista.ListaElectoralId);
+
+                if (listaElectoral == null)
+                    throw new ArgumentException("La lista electoral ingresada no existe.");
+
+                if (!listaElectoral.Activo)
+                {
+                    throw new InvalidOperationException($"La lista electoral '{listaElectoral.NombreLista}' está suspendida.");
+                }
+
+                listas[lista.ListaElectoralId] = listaElectoral;
+            }
+
+            return listas;
+        }
+
         private Dictionary<string, object?> ObtenerValoresAuditoria(Candidato candidato, Eleccion eleccion)
         {
             var valores = BitacoraHelper.ObtenerValores(candidato, CamposAuditablesCandidato.Campos);
@@ -472,7 +594,63 @@ namespace Votaciones.Application.Services.Votaciones
 
             return valores;
         }
+        //valoresAuditoria para bitacora de varios candidatos
+        private async Task<Dictionary<string, object?>> ObtenerValoresAuditoriaVariosAsync(List<Candidato> candidatos, Eleccion eleccion)
+        {
+            var valores = new Dictionary<string, object?>
+            {
+                ["CantidadCandidatos"] = candidatos.Count,
+                ["TipoCandidato"] = candidatos.First().TipoCandidato.ToString()
+            };
 
+            // Elección
+            BitacoraHelper.AgregarRelacion(valores, "Eleccion", eleccion.NombreEleccion);
+            // Provincia
+            var provinciaId = candidatos.First().ProvinciaId;
+            if (provinciaId.HasValue)
+            {
+                var provincia = await _zonaRepository.ObtenerProvinciaPorIdAsync(provinciaId.Value);
+
+                if (provincia != null)
+                    BitacoraHelper.AgregarRelacion(valores, "Provincia", provincia.NombreProvincia);
+            }
+            // Cantón
+            var cantonId = candidatos.First().CantonId;
+            if (cantonId.HasValue)
+            {
+                var canton = await _zonaRepository.ObtenerCantonPorIdAsync(cantonId.Value);
+
+                if (canton != null)
+                    BitacoraHelper.AgregarRelacion(valores, "Canton", canton.NombreCanton);
+            }
+            // Parroquia
+            var parroquiaId = candidatos.First().ParroquiaId;
+            if (parroquiaId.HasValue)
+            {
+                var parroquia = await _zonaRepository.ObtenerParroquiaPorIdAsync(parroquiaId.Value);
+                if (parroquia != null)
+                    BitacoraHelper.AgregarRelacion(valores, "Parroquia", parroquia.NombreParroquia);
+            }
+
+            // Candidatos y sus listas
+            valores["Candidatos"] = candidatos.OrderBy(x => x.Orden)
+                .Select(x => new 
+                {
+                    x.NombreCandidato,
+                    x.Orden,
+                    Listas = x.ListaCandidatos
+                        .Select(lc => new
+                        {
+                            NumeroLista = lc.ListaElectoral?.NumeroLista,
+                            Lista = lc.ListaElectoral?.NombreLista,
+                            EsPrincipal = lc.ListaPrincipal
+                        })
+                        .ToList()
+                })
+                .ToList();
+
+            return valores;
+        }
         #endregion
 
     }

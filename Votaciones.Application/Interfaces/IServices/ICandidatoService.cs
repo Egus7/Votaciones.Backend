@@ -11,6 +11,7 @@ namespace Votaciones.Application.Interfaces.IServices
             TipoCandidato? tipoCandidato = null, Guid? listaElectoralId = null);
         Task<CandidatoDTO?> ObtenerPorIdAsync(Guid id);
         Task<Candidato> CrearAsync(Candidato candidato);
+        Task<List<Candidato>> CrearVariosAsync(List<Candidato> candidatos);
         Task<Candidato> ActualizarAsync(Guid id, Candidato candidato);
         Task<Candidato> CambiarEstadoAsync(Guid id);
     }

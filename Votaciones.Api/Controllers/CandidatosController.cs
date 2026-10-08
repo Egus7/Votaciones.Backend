@@ -57,6 +57,16 @@ namespace Votaciones.Api.Controllers
             return CreatedAtAction(nameof(ObtenerPorId), new { id = resultado.IdCandidato }, resultado);
         }
 
+        //crear varios concejales a la vez
+        [HttpPost("crearVarios")]
+        [Authorize(Policy = RolPermisos.CandidatosCreate)]
+        public async Task<ActionResult> CrearVariosConcejales(List<Candidato> candidatos)
+        {
+            var resultado = await _candidatoService.CrearVariosAsync(candidatos);
+
+            return Ok($"{resultado.Count()} candidatos creados correctamente");
+        }
+
         // PUT api/CandidatosController/5
         [HttpPut("{id}")]
         [Authorize(Policy = RolPermisos.CandidatosEdit)]
