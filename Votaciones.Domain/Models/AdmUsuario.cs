@@ -17,7 +17,6 @@ namespace Votaciones.Domain.Models
         [EmailAddress(ErrorMessage = "El correo no tiene un formato válido.")]
         public string? EmailUsuario { get; set; }
 
-        [Required]
         public string Password { get; set; } = string.Empty;
 
         public Guid RolId { get; set; }

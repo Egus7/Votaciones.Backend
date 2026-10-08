@@ -2,7 +2,7 @@
 using Votaciones.Application.DTOs.SeguridadDTO;
 using Votaciones.Domain.Models;
 
-namespace Votaciones.Domain.Interfaces.IServices
+namespace Votaciones.Application.Interfaces.IServices
 {
     public interface IRolService
     {

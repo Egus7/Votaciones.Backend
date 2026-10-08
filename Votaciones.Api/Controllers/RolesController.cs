@@ -1,10 +1,9 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Votaciones.Api.Authentication;
 using Votaciones.Application.DTOs.PaginacionDTO;
 using Votaciones.Application.DTOs.SeguridadDTO;
+using Votaciones.Application.Interfaces.IServices;
 using Votaciones.Application.Security;
-using Votaciones.Domain.Interfaces.IServices;
 
 // For more information on enabling Web API for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 
@@ -70,8 +69,7 @@ namespace Votaciones.Api.Controllers
         {
             var resultado = await _rolService.CambiarEstadoAsync(id);
 
-            return Ok(new { message = resultado.Activo 
-                ? "Rol activado correctamente." : "Rol desactivado correctamente." });
+            return Ok(resultado.Activo ? "Rol activado correctamente." : "Rol desactivado correctamente.");
         }
 
     }

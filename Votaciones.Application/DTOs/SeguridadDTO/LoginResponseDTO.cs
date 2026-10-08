@@ -9,6 +9,5 @@ namespace Votaciones.Application.DTOs.SeguridadDTO
         public string NombreUsuario { get; set; } = string.Empty;
         public Guid RolId { get; set; }
         public string NombreRol { get; set; } = string.Empty;
-        public List<string> Permisos { get; set; } = [];
     }
 }

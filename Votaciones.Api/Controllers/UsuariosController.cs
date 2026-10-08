@@ -45,6 +45,14 @@ namespace Votaciones.Api.Controllers
             return Ok(usuario);
         }
 
+        [HttpGet("permisos")]
+        public async Task<ActionResult<List<string>>> ObtenerPermisos()
+        {
+            var permisos = await _usuarioService.ObtenerPermisosUsuarioAsync();
+
+            return Ok(permisos);
+        }
+
         // POST api/<UsuariosController>
         [HttpPost]
         [Authorize(Policy = RolPermisos.UsuariosCreate)]
@@ -71,8 +79,8 @@ namespace Votaciones.Api.Controllers
         {
             var resultado = await _usuarioService.CambiarEstadoAsync(id);
 
-            return Ok(new { message = resultado.Estado
-                ? "Usuario activado correctamente." : "Usuario desactivado correctamente." });
+            return Ok(resultado.Estado ? 
+                "Usuario activado correctamente." : "Usuario desactivado correctamente.");
         }
     }
 }

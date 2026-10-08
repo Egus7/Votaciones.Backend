@@ -14,7 +14,7 @@ namespace Votaciones.Api.Middleware
             if (policyAuthorizationResult.Forbidden)
             {
                 var mensaje = policyAuthorizationResult.AuthorizationFailure?.FailureReasons.FirstOrDefault()?.Message 
-                    ?? "No tiene permisos para realizar esta operación.";
+                    ?? "No tiene permisos para realizar esta acción.";
 
                 httpContext.Response.StatusCode = StatusCodes.Status403Forbidden;
                 httpContext.Response.ContentType = "application/json";

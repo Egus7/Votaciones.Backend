@@ -4,7 +4,7 @@ namespace Votaciones.Domain.Interfaces.IRepositories
 {
     public interface IBitacoraRepository
     {
-        Task<List<AdmBitacora>> ObtenerPorEleccionAsync(Guid eleccionId);
+        IQueryable<AdmBitacora> ObtenerQuery();
         Task<List<AdmBitacora>> ObtenerPorRegistroAsync(string tabla, string idRegistro);
         Task AgregarAsync(AdmBitacora bitacora);
 

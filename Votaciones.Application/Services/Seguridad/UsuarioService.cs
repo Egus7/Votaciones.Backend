@@ -1,6 +1,7 @@
 ﻿using AutoMapper;
 using AutoMapper.QueryableExtensions;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 using Votaciones.Application.DTOs.PaginacionDTO;
 using Votaciones.Application.DTOs.SeguridadDTO;
 using Votaciones.Application.Helpers;
@@ -75,6 +76,30 @@ namespace Votaciones.Application.Services.Seguridad
             return await _usuarioRepository.ObtenerQuery().Where(x => x.IdUsuario == id)
                 .ProjectTo<UsuarioDTO>(_mapper.ConfigurationProvider)
                 .FirstOrDefaultAsync();
+        }
+
+        public async Task<List<string>> ObtenerPermisosUsuarioAsync()
+        {
+            var usuario = await _usuarioRepository.ObtenerQuery().AsNoTracking()
+                .FirstOrDefaultAsync(x => x.IdUsuario == _currentService.UsuarioId);
+
+            if (usuario == null)
+                return new List<string>();
+
+            var rol = await _rolRepository.ObtenerQuery().AsNoTracking()
+                .FirstOrDefaultAsync(x => x.IdRol == usuario.RolId);
+
+            if (rol == null || string.IsNullOrWhiteSpace(rol.PermisosRol))
+                return new List<string>();
+
+            try
+            {
+                return JsonSerializer.Deserialize<List<string>>(rol.PermisosRol) ?? new List<string>();
+            }
+            catch (JsonException)
+            {
+                return new List<string>();
+            }
         }
 
         public async Task<AdmUsuario> CrearAsync(AdmUsuario usuario)

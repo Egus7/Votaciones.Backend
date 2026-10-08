@@ -4,11 +4,13 @@ using Votaciones.Application.DTOs.PaginacionDTO;
 using Votaciones.Application.Interfaces.IServices;
 using Votaciones.Application.Security;
 using Votaciones.Domain.Models;
+using static Votaciones.Domain.Enums.EnumsEleccion;
 
 namespace Votaciones.Api.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class ListasElectoralController : ControllerBase
     {
         private readonly IListaElectoralService _listaElectoralService;
@@ -21,9 +23,10 @@ namespace Votaciones.Api.Controllers
         // GET: api/<ListasElectoralController>/paginacion
         [HttpGet("paginacion")]
         [Authorize(Policy = RolPermisos.ListasView)]
-        public async Task<ActionResult<PaginacionDTO<ListaElectoral>>> GetPaginacion([FromQuery] int pagina = 1, [FromQuery] int pageSize = 7, [FromQuery] string? buscar = null)
+        public async Task<ActionResult<PaginacionDTO<ListaElectoral>>> GetPaginacion([FromQuery] int pagina = 1, [FromQuery] int pageSize = 7, 
+                [FromQuery] string? buscar = null, [FromQuery] Jurisdiccion? jurisdiccion = null)
         {
-            var resultado = await _listaElectoralService.ObtenerPaginacionAsync(pagina, pageSize, buscar);
+            var resultado = await _listaElectoralService.ObtenerPaginacionAsync(pagina, pageSize, buscar, jurisdiccion);
 
             return Ok(resultado);
         }
@@ -65,10 +68,8 @@ namespace Votaciones.Api.Controllers
         {
             var resultado = await _listaElectoralService.CambiarEstadoAsync(id);
 
-            return Ok(new
-            {
-                message = resultado.Activo ? "Lista electoral activada correctamente." : "Lista electoral desactivada correctamente."
-            });
+            return Ok(resultado.Activo ? 
+                "Lista electoral activada correctamente." : "Lista electoral suspendida correctamente.");
         }
 
     }

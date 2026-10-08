@@ -5,6 +5,7 @@ using Votaciones.Application.DTOs.PaginacionDTO;
 using Votaciones.Application.DTOs.SeguridadDTO;
 using Votaciones.Application.Helpers;
 using Votaciones.Application.Interfaces.ISecurity;
+using Votaciones.Application.Interfaces.IServices;
 using Votaciones.Application.Security;
 using Votaciones.Domain.Interfaces;
 using Votaciones.Domain.Interfaces.IRepositories;

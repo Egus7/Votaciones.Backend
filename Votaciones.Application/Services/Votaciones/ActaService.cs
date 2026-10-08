@@ -9,7 +9,6 @@ using Votaciones.Application.Interfaces.IServices;
 using Votaciones.Application.Utils;
 using Votaciones.Domain.Interfaces;
 using Votaciones.Domain.Interfaces.IRepositories;
-using Votaciones.Domain.Interfaces.IServices;
 using Votaciones.Domain.Models;
 using static Votaciones.Application.Helpers.Audit.CamposAuditablesBitacora;
 using static Votaciones.Domain.Enums.EnumsEleccion;
@@ -23,6 +22,7 @@ namespace Votaciones.Application.Services.Votaciones
         private readonly IEleccionRepository _eleccionRepository;
         private readonly IListaElectoralRepository _listaElectoralRepository;
         private readonly ICandidatoRepository _candidatoRepository;
+        private readonly IZonaRepository _zonaRepository;
         private readonly IBitacoraService _bitacoraService;
         private readonly IMapper _mapper;
         private readonly IUnitOfWork _unitOfWork;
@@ -31,28 +31,63 @@ namespace Votaciones.Application.Services.Votaciones
         private string tabla = "ActaEleccion";
 
         public ActaService (IActaRepository actaRepository, IMesaElectoralRepository mesaElectoralRepository, IEleccionRepository eleccionRepository,
-                IListaElectoralRepository listaElectoralRepository, ICandidatoRepository candidatoRepository, IBitacoraService bitacoraService, 
-                IMapper mapper, IUnitOfWork unitOfWork, ICurrentService currentService)
+                IListaElectoralRepository listaElectoralRepository, ICandidatoRepository candidatoRepository, IZonaRepository zonaRepository, 
+                IBitacoraService bitacoraService, IMapper mapper, IUnitOfWork unitOfWork, ICurrentService currentService)
         {
             _actaRepository = actaRepository;
             _mesaElectoralRepository = mesaElectoralRepository;
             _eleccionRepository = eleccionRepository;
             _listaElectoralRepository = listaElectoralRepository;
             _candidatoRepository = candidatoRepository;
+            _zonaRepository = zonaRepository;
             _bitacoraService = bitacoraService;
             _mapper = mapper;
             _unitOfWork = unitOfWork;
             _currentService = currentService;
         }
 
-        public async Task<PaginacionDTO<ActaDTO>> ObtenerPaginacionAsync(Guid eleccionId, int pagina, int pageSize)
+        public async Task<PaginacionDTO<ActaDTO>> ObtenerPaginacionAsync(Guid eleccionId, int pagina, int pageSize, Guid? provinciaId = null, 
+            Guid? cantonId = null, Guid? parroquiaId = null, Guid? zonaId = null, Guid? mesaId = null, EstadoActa? estadoActa = null, TipoCandidato? tipoCandidato = null)
         {
             var query = _actaRepository.ObtenerQuery().Where(x => x.EleccionId == eleccionId);
+
+            if (provinciaId.HasValue && provinciaId != Guid.Empty)
+            {
+                query = query.Where(x => x.MesaElectoral!.Zona!.Parroquia!.Canton!.ProvinciaId == provinciaId);
+            }
+            if (cantonId.HasValue && cantonId != Guid.Empty)
+            {
+                query = query.Where(x => x.MesaElectoral!.Zona!.Parroquia!.CantonId == cantonId);
+            }
+            if (parroquiaId.HasValue && parroquiaId != Guid.Empty)
+            {
+                query = query.Where(x => x.MesaElectoral!.Zona!.ParroquiaId == parroquiaId);
+            }
+            if (zonaId.HasValue && zonaId != Guid.Empty)
+            {
+                query = query.Where(x => x.MesaElectoral!.ZonaId == zonaId);
+            }
+            if (mesaId.HasValue && mesaId != Guid.Empty)
+            {
+                query = query.Where(x => x.MesaElectoralId == mesaId);
+            }
+
+            if (estadoActa.HasValue)
+            {
+                query = query.Where(x => x.Estado == estadoActa);
+            }
+
+            if (tipoCandidato.HasValue)
+            {
+                query = query.Where(x => x.TipoCandidato == tipoCandidato);
+            }
 
             var totalRegistros = await query.CountAsync();
 
             var items = await query
-                .OrderBy(x => x.FechaRegistro)
+                .OrderBy(x => x.MesaElectoral!.Zona!.NombreZona)
+                .ThenBy(x => x.MesaElectoral!.CodigoMesa)
+                .ThenBy(x => x.TipoCandidato)
                 .Skip((pagina - 1) * pageSize)
                 .Take(pageSize)
                 .ProjectTo<ActaDTO>(_mapper.ConfigurationProvider)
@@ -73,9 +108,91 @@ namespace Votaciones.Application.Services.Votaciones
         {
             var query = _actaRepository.ObtenerQuery();
 
-            return await query.Where(x => x.IdActa == id)
+            var acta = await query.Where(x => x.IdActa == id)
                 .ProjectTo<ActaDTO>(_mapper.ConfigurationProvider)
                 .FirstOrDefaultAsync();
+
+            if (acta == null)
+                return null;
+
+            acta.ActasDetalle = acta.ActasDetalle
+                .OrderBy(x => x.NumeroLista)
+                .ThenBy(x => x.NombreCandidato)
+                .ToList();
+
+            return acta;
+        }
+
+        public async Task<List<ActaDetalleDTO>> ObtenerCandidatoListaPorTipoZonaAsync(Guid eleccionId, TipoCandidato tipoCandidato, Guid? provinciaId = null,
+            Guid? cantonId = null, Guid? parroquiaId = null)
+        {
+            var query = _candidatoRepository.ObtenerQuery()
+                .Where(x => x.EleccionId == eleccionId && x.TipoCandidato == tipoCandidato);
+
+            switch (tipoCandidato)
+            {
+                // Sin ámbito territorial
+                case TipoCandidato.Presidente:
+                    break;
+                // Solo provincia
+                case TipoCandidato.Prefecto:
+                    if (provinciaId.HasValue)
+                        query = query.Where(x => x.ProvinciaId == provinciaId);
+
+                    break;
+                // Provincia + cantón
+                case TipoCandidato.Alcalde:
+                case TipoCandidato.ConcejalUrbano:
+                    if (provinciaId.HasValue)
+                        query = query.Where(x => x.ProvinciaId == provinciaId);
+                    if (cantonId.HasValue)
+                        query = query.Where(x => x.CantonId == cantonId);
+
+                    break;
+                // Provincia + cantón + parroquia
+                case TipoCandidato.ConcejalRural:
+                    if (provinciaId.HasValue)
+                        query = query.Where(x => x.ProvinciaId == provinciaId);
+                    if (cantonId.HasValue)
+                        query = query.Where(x => x.CantonId == cantonId);
+                    if (parroquiaId.HasValue)
+                        query = query.Where(x => x.ParroquiaId == parroquiaId);
+
+                    break;
+            }
+
+            if (tipoCandidato == TipoCandidato.ConcejalUrbano || tipoCandidato == TipoCandidato.ConcejalRural)
+            {
+                var detalles = await query.SelectMany(c => c.ListaCandidatos.Where(c => c.ListaPrincipal)
+                .Select(l => new ActaDetalleDTO
+                {
+                    CandidatoId = null,
+                    NombreCandidato = null,
+                    ListaElectoralId = l.ListaElectoralId,
+                    NombreLista = l.ListaElectoral!.NombreLista,
+                    NumeroLista = l.ListaElectoral.NumeroLista,
+                    Votos = 0
+                })).ToListAsync();
+
+                return detalles.GroupBy(x => x.ListaElectoralId).Select(x => x.First())
+                    .OrderBy(x => x.NumeroLista).ToList();
+            }
+            else
+            {
+                return await query.SelectMany(c => c.ListaCandidatos.Where(c => c.ListaPrincipal)
+                .Select(l => new ActaDetalleDTO
+                {
+                    CandidatoId = c.IdCandidato,
+                    NombreCandidato = c.NombreCandidato,
+                    ListaElectoralId = l.ListaElectoralId,
+                    NombreLista = l.ListaElectoral!.NombreLista,
+                    NumeroLista = l.ListaElectoral.NumeroLista,
+                    Votos = 0
+                }))
+                .OrderBy(x => x.NumeroLista)
+                .ThenBy(x => x.NombreCandidato)
+                .ToListAsync();
+            }
         }
 
         public async Task<ActaDTO?> ObtenerPorMesaAsync(Guid mesaId)
@@ -116,7 +233,8 @@ namespace Votaciones.Application.Services.Votaciones
             // verificar que no tenga acta existente
             var actaExistente = await _actaRepository.ObtenerPorMesaAsync(acta.MesaElectoralId, acta.TipoCandidato);
             if (actaExistente != null)
-                throw new ArgumentException($"La mesa electoral '{mesaElec.CodigoMesa}', ya tiene un acta registrada para {acta.TipoCandidato}.");
+                throw new ArgumentException($"La mesa electoral '{mesaElec.CodigoMesa}-{mesaElec.Zona!.NombreZona}', " +
+                        $"ya tiene un acta registrada para {acta.TipoCandidato}.");
             // Validar votos
             if (acta.VotosBlancos < 0)
                 throw new ArgumentException("Los votos blancos no pueden ser negativos.");
@@ -217,7 +335,7 @@ namespace Votaciones.Application.Services.Votaciones
 
                 #region Registrar bitacora
                 // Bitácora
-                var valoresNuevos = ObtenerValoresAuditoria(acta, eleccion, mesaElec);
+                var valoresNuevos = await ObtenerValoresAuditoria(acta, eleccion, mesaElec);
 
                 await _bitacoraService.RegistrarBitacoraAsync("INSERT", tabla, acta.IdActa.ToString(), 
                     $"Acta registrada para la mesa '{mesaElec.CodigoMesa}-{acta.TipoCandidato}'.", acta.EleccionId, 
@@ -282,7 +400,7 @@ namespace Votaciones.Application.Services.Votaciones
                 throw new KeyNotFoundException("La mesa electoral del acta no existe.");
 
             //Valores anteriores
-            var valoresAnteriores = ObtenerValoresAuditoria(existente, eleccion, mesaElec);
+            var valoresAnteriores = await ObtenerValoresAuditoria(existente, eleccion, mesaElec);
             // Actualizar cabecera
             existente.VotosBlancos = acta.VotosBlancos;
             existente.VotosNulos = acta.VotosNulos;
@@ -333,7 +451,7 @@ namespace Votaciones.Application.Services.Votaciones
             try
             {
                 //valores nuevos 
-                var valoresNuevos = ObtenerValoresAuditoria(existente, eleccion, mesaElec);
+                var valoresNuevos = await ObtenerValoresAuditoria(existente, eleccion, mesaElec);
                 //cambios
                 var cambios = BitacoraHelper.ObtenerSoloCambios(valoresAnteriores, valoresNuevos);
                 if (cambios.Nuevos.Any())
@@ -382,7 +500,7 @@ namespace Votaciones.Application.Services.Votaciones
             #endregion
 
             // Valores anteriores
-            var valoresAnteriores = ObtenerValoresAuditoria(acta, eleccion, mesa);
+            var valoresAnteriores = await ObtenerValoresAuditoria(acta, eleccion, mesa);
             // Cambiar estado
             acta.Estado = nuevoEstado;
             acta.FechaModificacion = Fecha.DevolverDatetime(DateTime.UtcNow.ToString("o"));
@@ -395,7 +513,7 @@ namespace Votaciones.Application.Services.Votaciones
                 mesa.Activa = true;
 
             // Valores nuevos
-            var valoresNuevos = ObtenerValoresAuditoria(acta, eleccion, mesa);
+            var valoresNuevos = await ObtenerValoresAuditoria(acta, eleccion, mesa);
             var cambios = BitacoraHelper.ObtenerSoloCambios(valoresAnteriores, valoresNuevos);
 
             await _unitOfWork.BeginTransactionAsync();
@@ -418,17 +536,24 @@ namespace Votaciones.Application.Services.Votaciones
         }
 
         #region Metodos privados
-        private Dictionary<string, object?> ObtenerValoresAuditoria(ActaEleccion acta, Eleccion eleccion, MesaElectoral mesa)
+        private async Task<Dictionary<string, object?>> ObtenerValoresAuditoria(ActaEleccion acta, Eleccion eleccion, MesaElectoral mesa)
         {
             var valores = BitacoraHelper.ObtenerValores(acta, CamposAuditablesActa.Campos);
             BitacoraHelper.AgregarRelacion(valores, "Eleccion", eleccion.NombreEleccion);
             BitacoraHelper.AgregarRelacion(valores, "Mesa", mesa.CodigoMesa);
             //Obtener zona
-            var zona = _mesaElectoralRepository.ObtenerZonaAsync(mesa.ZonaId);
-            BitacoraHelper.AgregarRelacion(valores, "Zona", zona.Result!.NombreZona);
-            
+            var zona = await _mesaElectoralRepository.ObtenerZonaAsync(mesa.ZonaId);
+            var parroquia = await _zonaRepository.ObtenerParroquiaPorIdAsync(zona!.ParroquiaId);
+            var canton = await _zonaRepository.ObtenerCantonPorIdAsync(parroquia!.CantonId);
+            var provincia = await _zonaRepository.ObtenerProvinciaPorIdAsync(canton!.ProvinciaId);
+            // agregar relaciones
+            BitacoraHelper.AgregarRelacion(valores, "Zona", zona!.NombreZona);
+            BitacoraHelper.AgregarRelacion(valores, "Parroquia", parroquia!.NombreParroquia);
+            BitacoraHelper.AgregarRelacion(valores, "Canton", canton!.NombreCanton);
+            BitacoraHelper.AgregarRelacion(valores, "Provincia", provincia!.NombreProvincia);
+
             // Detalles del acta
-           if (acta.TipoCandidato == TipoCandidato.ConcejalUrbano || acta.TipoCandidato == TipoCandidato.ConcejalRural)
+            if (acta.TipoCandidato == TipoCandidato.ConcejalUrbano || acta.TipoCandidato == TipoCandidato.ConcejalRural)
             {
                 valores["Detalles"] = acta.ActaDetalles
                     .Select(d => new

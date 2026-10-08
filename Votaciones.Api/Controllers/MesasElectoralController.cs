@@ -2,9 +2,10 @@
 using Microsoft.AspNetCore.Mvc;
 using Votaciones.Application.DTOs.PaginacionDTO;
 using Votaciones.Application.DTOs.VotacionesDTO;
+using Votaciones.Application.Interfaces.IServices;
 using Votaciones.Application.Security;
-using Votaciones.Domain.Interfaces.IServices;
 using Votaciones.Domain.Models;
+using static Votaciones.Domain.Enums.EnumsEleccion;
 
 // For more information on enabling Web API for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 
@@ -25,9 +26,10 @@ namespace Votaciones.Api.Controllers
         // GET: api/<MesasElectoralController>/paginacion
         [HttpGet("paginacion")]
         [Authorize(Policy = RolPermisos.MesasView)]
-        public  async Task<ActionResult<PaginacionDTO<MesaElectoralDTO>>> GetPaginacion(Guid eleccionId, [FromQuery] int pagina = 1, [FromQuery] int pageSize = 7)
+        public  async Task<ActionResult<PaginacionDTO<MesaElectoralDTO>>> GetPaginacion(Guid eleccionId, [FromQuery] int pagina = 1, [FromQuery] int pageSize = 7, 
+                [FromQuery] string? busqueda = null, [FromQuery] TipoMesa? tipoMesa = null)
         {
-            var resultado = await _mesaElelectoralService.ObtenerPaginacionAsync(eleccionId, pagina, pageSize);
+            var resultado = await _mesaElelectoralService.ObtenerPaginacionAsync(eleccionId, pagina, pageSize, busqueda, tipoMesa);
 
             return Ok(resultado);
         }
@@ -45,6 +47,33 @@ namespace Votaciones.Api.Controllers
             return Ok(mesaElectoral);
         }
 
+        [HttpGet("zona")]
+        [Authorize(Policy = RolPermisos.MesasView)]
+        public async Task<List<MesaElectoralDTO>> ObtenerPorZona(Guid eleccionId, Guid zonaId)
+        {
+            var mesaElectoral = await _mesaElelectoralService.ObtenerPorZonaAsync(eleccionId, zonaId);
+            return mesaElectoral;
+        }
+
+        [HttpGet("disponible-por-zona")]
+        [Authorize(Policy = RolPermisos.MesasView)]
+        public async Task<List<MesaElectoralDTO>> ObtenerDisponiblePorZona(Guid eleccionId, Guid zonaId, TipoCandidato tipoCandidato)
+        {
+            var mesaElectoral = await _mesaElelectoralService.ObtenerDisponiblePorZonaAsync(eleccionId, 
+                zonaId, tipoCandidato);
+
+            return mesaElectoral;
+        }
+
+        [HttpGet("codigo-mesa")]
+        [Authorize(Policy = RolPermisos.MesasView)]
+        public async Task<ActionResult> CodigoMesa([FromQuery] Guid eleccionId, [FromQuery] Guid zonaId, [FromQuery] TipoMesa tipoMesa)
+        {
+            var resultado = await _mesaElelectoralService.PrevisualizarAsync(eleccionId, zonaId, tipoMesa);
+
+            return Ok(new { codigoMesa = resultado.CodigoMesa, descripcion = resultado.Descripcion });
+        }
+
         // POST api/<MesasElectoralController>
         [HttpPost]
         [Authorize(Policy = RolPermisos.MesasCreate)]
@@ -53,6 +82,16 @@ namespace Votaciones.Api.Controllers
             var resultado = await _mesaElelectoralService.CrearAsync(mesaElectoral);
 
             return CreatedAtAction(nameof(ObtenerPorId), new { id = resultado.IdMesaElectoral }, resultado);
+        }
+
+        [HttpPost("lote")]
+        [Authorize(Policy = RolPermisos.MesasCreate)]
+        public async Task<ActionResult<MesaElectoral>> CrearMesaElectoralLote([FromQuery] Guid eleccionId, [FromQuery] Guid zonaId, 
+                [FromQuery] int cantidadFemeninas, [FromQuery] int cantidadMasculinas)
+        {
+            var resultado = await _mesaElelectoralService.CrearLoteAsync(eleccionId, zonaId, cantidadFemeninas, cantidadMasculinas);
+
+            return Ok(resultado);
         }
 
         // PUT api/<MesasElectoralController>/5
@@ -72,10 +111,8 @@ namespace Votaciones.Api.Controllers
         {
             var resultado = await _mesaElelectoralService.CambiarEstadoAsync(id);
 
-            return Ok(new
-            {
-                message = resultado.Activa ? "Mesa electoral activada correctamente." : "Mesa electoral desactivada correctamente."
-            });
+            return Ok(resultado.Activa ? 
+                "Mesa electoral activada correctamente." : "Mesa electoral desactivada correctamente.");
         }
 
     }

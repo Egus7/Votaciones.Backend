@@ -15,13 +15,12 @@ namespace Votaciones.Domain.Models
         [ForeignKey(nameof(EleccionId))]
         [JsonIgnore]
         public Eleccion? Eleccion { get; set; }
-
+        [Required]
         public Guid ZonaId { get; set; }
         [ForeignKey(nameof(ZonaId))]
         [JsonIgnore]
         public Zona? Zona { get; set; }
 
-        [Required]
         [MaxLength(20)]
         public string CodigoMesa { get; set; } = string.Empty;
         [Required]

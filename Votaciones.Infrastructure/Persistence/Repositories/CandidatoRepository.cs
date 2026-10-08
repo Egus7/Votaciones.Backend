@@ -33,16 +33,20 @@ namespace Votaciones.Infrastructure.Persistence.Repositories
             return candidato;
         }
 
-        public async Task<bool> ExistePorEleccionListaTipoAsync(Guid eleccionId, Guid listaId, TipoCandidato tipoCandidato, Guid? excluirCandidatoId = null)
+        public async Task<bool> ExistePorEleccionListaTipoAsync(Guid eleccionId, Guid listaId, TipoCandidato tipoCandidato, Guid? provinciaId = null, 
+                Guid? cantonId = null, Guid? parroquiaId = null, Guid? excluirCandidatoId = null)
         {
             return await _context.Candidatos.AnyAsync(x => x.EleccionId == eleccionId && x.TipoCandidato == tipoCandidato &&
-                    x.Activo && (!excluirCandidatoId.HasValue || x.IdCandidato != excluirCandidatoId.Value) && 
+                    x.Activo && (provinciaId == null || x.ProvinciaId == provinciaId) && (cantonId == null || x.CantonId == cantonId) &&
+                    (parroquiaId == null || x.ParroquiaId == parroquiaId) && (!excluirCandidatoId.HasValue || x.IdCandidato != excluirCandidatoId.Value) && 
                     x.ListaCandidatos.Any(lc => lc.ListaElectoralId == listaId));
         }
-        public async Task<bool> ExisteOrdenPorEleccionListaTipoAsync(Guid eleccionId, Guid listaId, TipoCandidato tipoCandidato, int orden, Guid? excluirCandidatoId = null)
+        public async Task<bool> ExisteOrdenPorEleccionListaTipoAsync(Guid eleccionId, Guid listaId, TipoCandidato tipoCandidato, int orden, 
+                Guid? provinciaId = null, Guid? cantonId = null, Guid? parroquiaId = null, Guid? excluirCandidatoId = null)
         {
             return await _context.Candidatos.AnyAsync(x => x.EleccionId == eleccionId && x.TipoCandidato == tipoCandidato &&
-                    x.Orden == orden && x.Activo && (!excluirCandidatoId.HasValue || x.IdCandidato != excluirCandidatoId.Value) &&
+                    x.Orden == orden && x.Activo && (provinciaId == null || x.ProvinciaId == provinciaId) && (cantonId == null || x.CantonId == cantonId) &&
+                    (parroquiaId == null || x.ParroquiaId == parroquiaId) && (!excluirCandidatoId.HasValue || x.IdCandidato != excluirCandidatoId.Value) &&
                     x.ListaCandidatos.Any(lc => lc.ListaElectoralId == listaId));
         }
         public async Task<bool> ExisteListaPrincipalPorEleccionTipoAsync(Guid eleccionId, Guid listaElectoralId, TipoCandidato tipoCandidato)

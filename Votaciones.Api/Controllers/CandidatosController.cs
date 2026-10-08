@@ -2,9 +2,10 @@
 using Microsoft.AspNetCore.Mvc;
 using Votaciones.Application.DTOs.PaginacionDTO;
 using Votaciones.Application.DTOs.VotacionesDTO;
+using Votaciones.Application.Interfaces.IServices;
 using Votaciones.Application.Security;
-using Votaciones.Domain.Interfaces.IServices;
 using Votaciones.Domain.Models;
+using static Votaciones.Domain.Enums.EnumsEleccion;
 
 // For more information on enabling Web API for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 
@@ -25,9 +26,10 @@ namespace Votaciones.Api.Controllers
         // GET: api/CandidatosController
         [HttpGet("paginacion")]
         [Authorize(Policy = RolPermisos.CandidatosView)]
-        public async Task<ActionResult<PaginacionDTO<CandidatoDTO>>> GetPaginacion(Guid eleccionId, [FromQuery] int pagina = 1, [FromQuery] int pageSize = 7)
+        public async Task<ActionResult<PaginacionDTO<CandidatoDTO>>> GetPaginacion(Guid eleccionId, [FromQuery] int pagina = 1, [FromQuery] int pageSize = 7, 
+            [FromQuery] string? busqueda = null, [FromQuery] TipoCandidato? tipoCandidato = null, [FromQuery] Guid? listaElectoralId = null)
         {
-            var resultado = await _candidatoService.ObtenerPaginacionAsync(eleccionId, pagina, pageSize);
+            var resultado = await _candidatoService.ObtenerPaginacionAsync(eleccionId, pagina, pageSize, busqueda, tipoCandidato, listaElectoralId);
 
             return Ok(resultado);
         }
@@ -72,10 +74,7 @@ namespace Votaciones.Api.Controllers
         {
             var resultado = await _candidatoService.CambiarEstadoAsync(id);
 
-            return Ok(new 
-            { 
-                message = resultado.Activo  ? "Candidato activado correctamente." : "Candidato desactivado correctamente."
-            });
+            return Ok(resultado.Activo  ? "Candidato activado correctamente." : "Candidato desactivado correctamente.");
         }
 
     }

@@ -5,9 +5,9 @@ using Votaciones.Application.DTOs.PaginacionDTO;
 using Votaciones.Application.DTOs.VotacionesDTO;
 using Votaciones.Application.Helpers;
 using Votaciones.Application.Interfaces.ISecurity;
+using Votaciones.Application.Interfaces.IServices;
 using Votaciones.Domain.Interfaces;
 using Votaciones.Domain.Interfaces.IRepositories;
-using Votaciones.Domain.Interfaces.IServices;
 using Votaciones.Domain.Models;
 using static Votaciones.Application.Helpers.Audit.CamposAuditablesBitacora;
 using static Votaciones.Domain.Enums.EnumsEleccion;
@@ -19,6 +19,8 @@ namespace Votaciones.Application.Services.Votaciones
         private readonly IEleccionRepository _eleccionRepository;
         private readonly IListaElectoralRepository _listaElectoralRepository;
         private readonly ICandidatoRepository _candidatoRepository;
+        private readonly IActaRepository _actaRepository;
+        private readonly IZonaRepository _zonaRepository;
         private readonly IBitacoraService _bitacoraService;
         private readonly IMapper _mapper;
         private readonly IUnitOfWork _unitOfWork;
@@ -27,33 +29,55 @@ namespace Votaciones.Application.Services.Votaciones
         private string tabla = "Candidato";
 
         public CandidatoService(IEleccionRepository eleccionRepository, IListaElectoralRepository listaElectoralRepository, 
-            ICandidatoRepository candidatoRepository, IBitacoraService bitacoraService, IMapper mapper, IUnitOfWork unitOfWork, 
-            ICurrentService currentService)
+            ICandidatoRepository candidatoRepository, IActaRepository actaRepository, IZonaRepository zonaRepository, IBitacoraService bitacoraService, 
+            IMapper mapper, IUnitOfWork unitOfWork, ICurrentService currentService)
         {
             _eleccionRepository = eleccionRepository;
             _listaElectoralRepository = listaElectoralRepository;
             _candidatoRepository = candidatoRepository;
+            _actaRepository = actaRepository;
+            _zonaRepository = zonaRepository;
             _bitacoraService = bitacoraService;
             _mapper = mapper;
             _unitOfWork = unitOfWork;
             _currentService = currentService;
         }
 
-        public async Task<PaginacionDTO<CandidatoDTO>> ObtenerPaginacionAsync(Guid eleccionId, int pagina, int pageSize)
+        public async Task<PaginacionDTO<CandidatoDTO>> ObtenerPaginacionAsync(Guid eleccionId, int pagina, int pageSize, string? busqueda = null,
+            TipoCandidato? tipoCandidato = null, Guid? listaElectoralId = null)
         {
             var query = _candidatoRepository.ObtenerQuery().Where(x => x.EleccionId == eleccionId);
+
+            // Buscar por nombre
+            if (!string.IsNullOrWhiteSpace(busqueda))
+            {
+                busqueda = busqueda.Trim();
+                query = query.Where(x => x.NombreCandidato.Contains(busqueda));
+            }
+            // Filtrar por tipo de candidato
+            if (tipoCandidato.HasValue)
+            {
+                query = query.Where(x => x.TipoCandidato == tipoCandidato.Value);
+            }
+            // Filtrar por lista electoral
+            if (listaElectoralId.HasValue)
+            {
+                query = query.Where(x => x.ListaCandidatos.Any(l => l.ListaElectoralId == listaElectoralId.Value));
+            }
 
             var totalRegistros = await query.CountAsync();
 
             var items = await query
-                .OrderBy(x => x.NombreCandidato)
+                .OrderBy(x => x.ListaCandidatos.Where(l => l.ListaPrincipal)
+                    .Select(l => l.ListaElectoral!.NumeroLista).FirstOrDefault())
                 .ThenBy(x => x.TipoCandidato)
+                .ThenBy(x => x.Orden)
+                .ThenBy(x => x.NombreCandidato)
                 .Skip((pagina - 1) * pageSize)
                 .Take(pageSize)
                 .ProjectTo<CandidatoDTO>(_mapper.ConfigurationProvider)
                 .ToListAsync();
 
-            // armado para la Api
             return new PaginacionDTO<CandidatoDTO>
             {
                 Items = items,
@@ -63,6 +87,7 @@ namespace Votaciones.Application.Services.Votaciones
                 TotalPages = (int)Math.Ceiling(totalRegistros / (double)pageSize)
             };
         }
+
         public async Task<CandidatoDTO?> ObtenerPorIdAsync(Guid id)
         {
             var query = _candidatoRepository.ObtenerQuery();
@@ -86,6 +111,9 @@ namespace Votaciones.Application.Services.Votaciones
             // validar estadoEleccion
             if (eleccion.Estado == EstadoEleccion.Cerrada)
                 throw new InvalidOperationException("La elección está cerrada.");
+            //validar tipoCandidato
+            if (!Enum.IsDefined(typeof(TipoCandidato), candidato.TipoCandidato))
+                throw new ArgumentException("El tipo de candidato es inválido.");
 
             // verificar que se seleccione al menos una lista electoral para candidato
             if (candidato.ListaCandidatos == null || !candidato.ListaCandidatos.Any())
@@ -127,21 +155,22 @@ namespace Votaciones.Application.Services.Votaciones
                 if (!esConcejal)
                 {
                     var existeCandidato = await _candidatoRepository.ExistePorEleccionListaTipoAsync(candidato.EleccionId,
-                            lista.ListaElectoralId, candidato.TipoCandidato);
+                            lista.ListaElectoralId, candidato.TipoCandidato, candidato.ProvinciaId, candidato.CantonId, candidato.ParroquiaId);
                     // Si existe un candidato para la misma elección, lista y tipo, no se permite crear otro
                     if (existeCandidato)
                         throw new InvalidOperationException($"Ya existe un candidato de tipo '{candidato.TipoCandidato}' registrado para " +
-                            $"la lista electoral '{listaElectoral.NombreLista}'.");
+                            $"la lista electoral '{listaElectoral.NombreLista}' en la zona seleccionada.");
                 }
                 //Concejales
                 else
                 {
                     var existeOrden = await _candidatoRepository.ExisteOrdenPorEleccionListaTipoAsync(candidato.EleccionId, 
-                            lista.ListaElectoralId, candidato.TipoCandidato, candidato.Orden!.Value);
+                            lista.ListaElectoralId, candidato.TipoCandidato, candidato.Orden!.Value, candidato.ProvinciaId, 
+                            candidato.CantonId, candidato.ParroquiaId);
                     // Si existe un candidato para la misma elección, lista, tipo y orden, no se permite crear otro
                     if (existeOrden)
                         throw new InvalidOperationException($"El orden '{candidato.Orden}' ya está asignado a otro candidato " +
-                            $"para la lista electoral '{listaElectoral.NombreLista}'.");
+                            $"para la lista electoral '{listaElectoral.NombreLista}' en la zona seleccionada.");
                 }
 
                 lista.IdListaCandidato = Guid.NewGuid();
@@ -196,6 +225,9 @@ namespace Votaciones.Application.Services.Votaciones
             // No permitir cambiar el candidato a otra elección
             if (existente.EleccionId != candidato.EleccionId)
                 throw new InvalidOperationException("No se puede cambiar la elección del candidato.");
+            // validar tipoCandidato
+            if (!Enum.IsDefined(typeof(TipoCandidato), candidato.TipoCandidato))
+                throw new ArgumentException("El tipo de candidato es inválido.");
 
             // Debe existir al menos una lista
             if (candidato.ListaCandidatos == null || !candidato.ListaCandidatos.Any())
@@ -208,14 +240,74 @@ namespace Votaciones.Application.Services.Votaciones
             // No permitir la misma lista dos veces
             if (candidato.ListaCandidatos.GroupBy(x => x.ListaElectoralId).Any(g => g.Count() > 1))
                 throw new InvalidOperationException("No se puede asociar la misma lista electoral más de una vez.");
-            
+
             // Validaciones específicas para concejales
             bool esConcejal = candidato.TipoCandidato == TipoCandidato.ConcejalUrbano || candidato.TipoCandidato == TipoCandidato.ConcejalRural;
+            bool tieneActas = false;
+
+            if (esConcejal)
+            {
+                var listaPrincipal = existente.ListaCandidatos.FirstOrDefault(x => x.ListaPrincipal);
+                // Para concejales el acta registra la lista, no el candidato
+                tieneActas = await _actaRepository.ExistePorListaYAmbitoAsync(existente.EleccionId, listaPrincipal!.ListaElectoralId,
+                    existente.TipoCandidato, existente.ProvinciaId, existente.CantonId, existente.ParroquiaId);
+            }
+            else
+            {
+                // Para los demás tipos el acta registra directamente el candidato
+                tieneActas = await _actaRepository.ExistePorCandidatoAsync(existente.EleccionId, existente.IdCandidato);
+            }
+            // Si el candidato tiene actas registradas, no se permite modificar algunos campos
+            if (tieneActas)
+            {
+                // No puede modificar el tipo de candidato
+                if (existente.TipoCandidato != candidato.TipoCandidato)
+                    throw new InvalidOperationException(
+                        "No se puede modificar el tipo de candidato porque el candidato tiene actas registradas.");
+
+                // No puede modificar la ubicación
+                if (existente.ProvinciaId != candidato.ProvinciaId || existente.CantonId != candidato.CantonId ||
+                    existente.ParroquiaId != candidato.ParroquiaId)
+                {
+                    throw new InvalidOperationException(
+                        "No se puede modificar la zona del candidato porque ya tiene actas registradas.");
+                }
+                // no se puede cambiar la lista principal si el candidato tiene actas registradas
+                if (existente.ListaCandidatos.Any(x => x.ListaPrincipal) && candidato.ListaCandidatos.Any(x => x.ListaPrincipal))
+                {
+                    var listaPrincipalExistente = existente.ListaCandidatos.First(x => x.ListaPrincipal);
+                    var listaPrincipalNueva = candidato.ListaCandidatos.First(x => x.ListaPrincipal);
+                    if (listaPrincipalExistente.ListaElectoralId != listaPrincipalNueva.ListaElectoralId)
+                    {
+                        throw new InvalidOperationException(
+                            "No se puede cambiar la lista principal del candidato porque ya tiene actas registradas.");
+                    }
+                }
+            }
+            // No permitir eliminar una lista que ya fue utilizada en un acta
+            foreach (var listaActual in existente.ListaCandidatos)
+            {
+                var sigueSeleccionada = candidato.ListaCandidatos.Any(x => x.ListaElectoralId == listaActual.ListaElectoralId);
+
+                if (!sigueSeleccionada)
+                {
+                    var utilizada = await _actaRepository.ExistePorListaYAmbitoAsync(existente.EleccionId, listaActual.ListaElectoralId,
+                        existente.TipoCandidato, existente.ProvinciaId, existente.CantonId, existente.ParroquiaId);
+
+                    if (utilizada)
+                    {
+                        throw new InvalidOperationException($"No se puede eliminar la lista electoral '{listaActual.ListaElectoral?.NombreLista}' " +
+                            "porque ya fue utilizada en un acta.");
+                    }
+                }
+            }
+            // validar si es concejal tiene que tener orden
             if (esConcejal)
             {
                 if (candidato.Orden == null || candidato.Orden <= 0)
                     throw new ArgumentException("El orden del candidato para concejal es obligatorio.");
             }
+
             // VALIDAR LISTAS Y GUARDARLAS PARA NO VOLVER A CONSULTAR
             var listasElectoralesAuditoria = new Dictionary<Guid, ListaElectoral>();
             // recorrer las listas del candidato y validar que existan y estén activas
@@ -236,23 +328,22 @@ namespace Votaciones.Application.Services.Votaciones
                 if (!esConcejal)
                 {
                     var existeCandidato = await _candidatoRepository.ExistePorEleccionListaTipoAsync(candidato.EleccionId,
-                            lista.ListaElectoralId, candidato.TipoCandidato, id);
+                            lista.ListaElectoralId, candidato.TipoCandidato, candidato.ProvinciaId, candidato.CantonId, candidato.ParroquiaId, id);
                     if (existeCandidato)
                         throw new InvalidOperationException($"Ya existe un candidato de tipo '{candidato.TipoCandidato}' registrado para " +
-                            $"la lista electoral '{listaElectoral.NombreLista}'.");
-  
+                            $"la lista electoral '{listaElectoral.NombreLista}' en la zona seleccionada.");
+
                 }
                 // validar que no exista otro candidato del mismo tipo y orden para la misma elección y lista
                 else
                 {
                     var existeOrden = await _candidatoRepository.ExisteOrdenPorEleccionListaTipoAsync(candidato.EleccionId, lista.ListaElectoralId,
-                            candidato.TipoCandidato, candidato.Orden!.Value, id);
+                            candidato.TipoCandidato, candidato.Orden!.Value, candidato.ProvinciaId, candidato.CantonId, candidato.ParroquiaId, id);
                     if (existeOrden) 
                     {
                         throw new InvalidOperationException($"El orden '{candidato.Orden}' ya está asignado a otro candidato " +
-                            $"para la lista electoral '{listaElectoral.NombreLista}'.");
+                            $"para la lista electoral '{listaElectoral.NombreLista}' en la zona seleccionada.");
                     }
-
                 }
             }
             // INICIAR TRANSACCIÓN
@@ -266,6 +357,9 @@ namespace Votaciones.Application.Services.Votaciones
                 existente.NombreCandidato = candidato.NombreCandidato.Trim();
                 existente.TipoCandidato = candidato.TipoCandidato;
                 existente.Orden = candidato.Orden;
+                existente.ProvinciaId = candidato.ProvinciaId;
+                existente.CantonId = candidato.CantonId;
+                existente.ParroquiaId = candidato.ParroquiaId;
                 existente.Activo = candidato.Activo;
 
                 // Eliminar las relaciones
@@ -352,6 +446,22 @@ namespace Votaciones.Application.Services.Votaciones
             var valores = BitacoraHelper.ObtenerValores(candidato, CamposAuditablesCandidato.Campos);
 
             BitacoraHelper.AgregarRelacion(valores, "Eleccion", eleccion.NombreEleccion);
+            // agregar relaciones de provincia, canton y parroquia si existen
+            if (candidato.ProvinciaId.HasValue)
+            {
+                var provincia = _zonaRepository.ObtenerProvinciaPorIdAsync(candidato.ProvinciaId!.Value);
+                BitacoraHelper.AgregarRelacion(valores, "Provincia", provincia.Result!.NombreProvincia!);
+            }
+            if (candidato.CantonId.HasValue)
+            {
+                var canton = _zonaRepository.ObtenerCantonPorIdAsync(candidato.CantonId.Value);
+                BitacoraHelper.AgregarRelacion(valores, "Canton", canton.Result!.NombreCanton!);
+            }
+            if (candidato.ParroquiaId.HasValue)
+            {
+                var parroquia = _zonaRepository.ObtenerParroquiaPorIdAsync(candidato.ParroquiaId.Value);
+                BitacoraHelper.AgregarRelacion(valores, "Parroquia", parroquia.Result!.NombreParroquia!);
+            }
             // detalles de listas candidatos
             valores["Listas Candidatos"] = candidato.ListaCandidatos.Select(lc => new
             {

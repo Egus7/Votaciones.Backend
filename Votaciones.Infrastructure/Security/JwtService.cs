@@ -17,7 +17,7 @@ namespace Votaciones.Infrastructure.Security
             _configuration = configuration;
         }
 
-        public string GenerarToken(Guid usuarioId, string nombreUsuario, Guid rolId, string nombreRol, List<string> permisos)
+        public string GenerarToken(Guid usuarioId, string nombreUsuario, Guid rolId, string nombreRol)
         {
             var jwtKey = _configuration["Jwt:Key"];
             
@@ -38,11 +38,6 @@ namespace Votaciones.Infrastructure.Security
                 new("rolId", rolId.ToString()),
                 new(ClaimTypes.Role, nombreRol)
             };
-
-            foreach (var permiso in permisos.Distinct())
-            {
-                claims.Add(new Claim("permiso", permiso));
-            }
 
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
             var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);

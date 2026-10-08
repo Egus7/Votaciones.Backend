@@ -8,6 +8,7 @@ namespace Votaciones.Application.Interfaces.IServices
     {
         Task<PaginacionDTO<UsuarioDTO>> ObtenerPaginacionAsync(int pagina, int pageSize, string? buscar = null);
         Task<UsuarioDTO?> ObtenerPorIdAsync(Guid id);
+        Task<List<string>> ObtenerPermisosUsuarioAsync();
         Task<AdmUsuario> CrearAsync(AdmUsuario usuario);
         Task<AdmUsuario> ActualizarAsync(Guid id, AdmUsuario usuario);
         Task<AdmUsuario> CambiarEstadoAsync(Guid id);

@@ -20,6 +20,20 @@ namespace Votaciones.Domain.Models
         public string NombreCandidato { get; set; } = string.Empty;
         public TipoCandidato TipoCandidato { get; set; }
         public int? Orden { get; set; }
+        
+        // Ámbito territorial del candidato
+        public Guid? ProvinciaId { get; set; }
+        [ForeignKey(nameof(ProvinciaId))]
+        [JsonIgnore]
+        public Provincia? Provincia { get; set; }
+        public Guid? CantonId { get; set; }
+        [ForeignKey(nameof(CantonId))]
+        [JsonIgnore]
+        public Canton? Canton { get; set; }
+        public Guid? ParroquiaId { get; set; }
+        [ForeignKey(nameof(ParroquiaId))]
+        [JsonIgnore]
+        public Parroquia? Parroquia { get; set; }
         public bool Activo { get; set; }
         // Listas que respaldan al candidato
         public List<ListaCandidato> ListaCandidatos { get; set; } = new List<ListaCandidato>();

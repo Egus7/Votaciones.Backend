@@ -1,5 +1,4 @@
 ﻿using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http.HttpResults;
 using System.Text.Json;
 using Votaciones.Domain.Interfaces.IRepositories;
 

@@ -8,6 +8,7 @@ using Votaciones.Domain.Interfaces.IRepositories;
 using Votaciones.Domain.Interfaces.IServices;
 using Votaciones.Domain.Models;
 using static Votaciones.Application.Helpers.Audit.CamposAuditablesBitacora;
+using static Votaciones.Domain.Enums.EnumsEleccion;
 
 namespace Votaciones.Application.Services.Votaciones
 {
@@ -29,16 +30,20 @@ namespace Votaciones.Application.Services.Votaciones
             _unitOfWork = unitOfWork;
         }
 
-        public async Task<PaginacionDTO<ListaElectoral>> ObtenerPaginacionAsync(int pagina, int pageSize, string? buscar = null)
+        public async Task<PaginacionDTO<ListaElectoral>> ObtenerPaginacionAsync(int pagina, int pageSize, string? buscar = null, Jurisdiccion? jurisdiccion = null)
         {
             var query = _listaElectoralRepository.ObtenerQuery();
 
             if (!string.IsNullOrWhiteSpace(buscar))
             {
                 var busqueda = buscar.Trim();
-
                 query = query.Where(x => x.NombreLista.Contains(buscar) ||
                     (x.Siglas != null && x.Siglas.Contains(buscar)));
+            }
+
+            if (jurisdiccion.HasValue)
+            {
+                query = query.Where(x => x.Jurisdiccion == jurisdiccion.Value);
             }
 
             var totalRegistros = await query.CountAsync();

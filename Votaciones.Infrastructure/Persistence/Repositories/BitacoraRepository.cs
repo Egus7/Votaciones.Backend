@@ -14,20 +14,16 @@ namespace Votaciones.Infrastructure.Persistence.Repositories
             _context = context;
         }
 
-        public async Task<List<AdmBitacora>> ObtenerPorEleccionAsync(Guid eleccionId)
+        public IQueryable<AdmBitacora> ObtenerQuery()
         {
-            return await _context.Bitacora.AsNoTracking()
-                .Where(x => x.EleccionId == eleccionId)
-                .OrderByDescending(x => x.FechaRegistro)
-                .ToListAsync();
+            return _context.Bitacora.AsNoTracking();
         }
 
         public async Task<List<AdmBitacora>> ObtenerPorRegistroAsync(string tabla, string idRegistro)
         {
             return await _context.Bitacora.AsNoTracking()
                 .Where(x => x.Tabla == tabla && x.IdRegistro == idRegistro)
-                .OrderByDescending(x => x.FechaRegistro)
-                .ToListAsync();
+                .OrderByDescending(x => x.FechaRegistro).ToListAsync();
         }
 
         public async Task AgregarAsync(AdmBitacora bitacora)

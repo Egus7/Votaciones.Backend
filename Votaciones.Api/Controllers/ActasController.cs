@@ -4,6 +4,7 @@ using Votaciones.Application.DTOs.PaginacionDTO;
 using Votaciones.Application.DTOs.VotacionesDTO;
 using Votaciones.Application.Interfaces.IServices;
 using Votaciones.Application.Security;
+using Votaciones.Application.Services.Votaciones;
 using Votaciones.Domain.Models;
 using static Votaciones.Domain.Enums.EnumsEleccion;
 
@@ -23,9 +24,12 @@ namespace Votaciones.Api.Controllers
 
         [HttpGet("paginacion")]
         [Authorize(Policy = RolPermisos.ActasView)]
-        public async Task<ActionResult<PaginacionDTO<ActaDTO>>> GetPaginacion(Guid eleccionId, [FromQuery] int pagina = 1, [FromQuery] int pageSize = 7)
+        public async Task<ActionResult<PaginacionDTO<ActaDTO>>> GetPaginacion(Guid eleccionId, [FromQuery] int pagina = 1, [FromQuery] int pageSize = 7, [FromQuery]Guid? provinciaId = null,
+                [FromQuery] Guid? cantonId = null, Guid? parroquiaId = null, Guid? zonaId = null, [FromQuery] Guid? mesaId = null, [FromQuery] EstadoActa? estadoActa = null, 
+                [FromQuery] TipoCandidato? tipoCandidato = null)
         {
-            var resultado = await _actaService.ObtenerPaginacionAsync(eleccionId, pagina, pageSize);
+            var resultado = await _actaService.ObtenerPaginacionAsync(eleccionId, pagina, pageSize, provinciaId, cantonId, parroquiaId, zonaId, 
+                    mesaId, estadoActa, tipoCandidato);
 
             return Ok(resultado);
         }
@@ -54,6 +58,17 @@ namespace Votaciones.Api.Controllers
             return Ok(acta);
         }
 
+        [HttpGet("candidatos-listas-registro")]
+        [Authorize(Policy = RolPermisos.ActasView)]
+        public async Task<ActionResult<List<ActaDetalleDTO>>> ObtenerDetallesParaRegistro(Guid eleccionId, TipoCandidato tipoCandidato,
+            Guid? provinciaId = null, Guid? cantonId = null, Guid? parroquiaId = null)
+        {
+            var resultado = await _actaService.ObtenerCandidatoListaPorTipoZonaAsync(eleccionId, tipoCandidato, 
+                provinciaId, cantonId, parroquiaId);
+
+            return Ok(resultado);
+        }
+
         [HttpPost]
         [Authorize(Policy = RolPermisos.ActasRegistrar)]
         public async Task<ActionResult<ActaEleccion>> CrearActa(ActaEleccion acta)
@@ -71,7 +86,7 @@ namespace Votaciones.Api.Controllers
             //var usuarioId = UsuarioId;
             var resultado = await _actaService.ActualizarAsync(id, acta);
 
-            return Ok(new { message = "Acta actualizada correctamente." });
+            return Ok("Acta actualizada correctamente.");
         }
 
         [HttpPut("cambiarEstado/{id:guid}")]
@@ -80,7 +95,7 @@ namespace Votaciones.Api.Controllers
         {
             var resultado = await _actaService.CambiarEstadoAsync(id, nuevoEstado);
 
-            return Ok(new { message = "Estado del acta actualizado correctamente." });
+            return Ok("Estado del acta actualizado correctamente.");
         }
 
     }

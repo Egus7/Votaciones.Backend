@@ -16,6 +16,7 @@ namespace Votaciones.Infrastructure.ServiceRegistration
             // Repositories (Persistencia)
             services.AddScoped<IBitacoraRepository, BitacoraRepository>();
             services.AddScoped<IEleccionRepository, EleccionRepository>();
+            services.AddScoped<IZonaRepository, ZonaRepository>();
             services.AddScoped<IListaElectoralRepository, ListaElectoralRepository>();
             services.AddScoped<ICandidatoRepository, CandidatoRepository>();
             services.AddScoped<IMesaElectoralRepository, MesaElectoralRepository>();

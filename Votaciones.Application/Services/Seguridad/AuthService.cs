@@ -44,21 +44,17 @@ namespace Votaciones.Application.Services.Seguridad
             if (!passwordValida)
                 throw new UnauthorizedAccessException("La contraseña es incorrecta.");
 
-            var permisos = string.IsNullOrWhiteSpace(usuario.Rol.PermisosRol) ? [] 
-            : JsonSerializer.Deserialize<List<string>>(usuario.Rol.PermisosRol) ?? [];
-
             var token = _jwtService.GenerarToken(usuario.IdUsuario, usuario.NombreUsuario, usuario.Rol.IdRol, 
-                    usuario.Rol.NombreRol, permisos);
+                    usuario.Rol.NombreRol);
 
             return new LoginResponseDTO
             {
                 Token = token,
                 ExpiracionToken = _jwtService.ObtenerExpiracion(),
                 IdUsuario = usuario.IdUsuario,
-                NombreUsuario = usuario.NombreUsuario,
+                NombreUsuario = dto.Usuario,
                 RolId = usuario.Rol.IdRol,
-                NombreRol = usuario.Rol.NombreRol,
-                Permisos = permisos
+                NombreRol = usuario.Rol.NombreRol
             };
         }
 

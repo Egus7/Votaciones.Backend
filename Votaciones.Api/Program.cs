@@ -109,8 +109,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 var response = new
                 {
                     message = context.AuthenticateFailure != null 
-                    ? "El token de autenticación no es válido o ha expirado." 
-                    : "Se requiere un token de autenticación válido."
+                    ? "Su sesión ha expirado, por favor inicie sesión nuevamente."
+                    : "Se requiere autenticación, por favor inicie sesión."
                 };
                 await context.Response.WriteAsJsonAsync(response);
             },
