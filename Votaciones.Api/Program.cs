@@ -7,29 +7,41 @@ using System.Text;
 using System.Text.Json.Serialization;
 using Votaciones.Api.Authentication;
 using Votaciones.Api.AuthorizationPermisos;
+using Votaciones.Api.Hubs;
 using Votaciones.Api.Middleware;
 using Votaciones.Application.DTOs.Mapping;
 using Votaciones.Application.Interfaces.ISecurity;
+using Votaciones.Application.Interfaces.ISignal;
 using Votaciones.Application.ServiceRegistration;
 using Votaciones.Infrastructure.Data;
 using Votaciones.Infrastructure.ServiceRegistration;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Habilitar CORS (Para que Angular pueda acceder a la API)
+// Habilitar CORS para Angular y SignalR
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll",
-        policy => policy.AllowAnyOrigin()
-                        .AllowAnyMethod()
-                        .AllowAnyMethod()
-                        .AllowAnyHeader());
+    options.AddPolicy("AngularCors", policy =>
+    {
+        var origenes = builder.Configuration
+            .GetSection("Cors:AllowedOrigins")
+            .Get<string[]>() ?? [];
+
+        policy
+            .WithOrigins(origenes)
+            .AllowAnyMethod()
+            .AllowAnyHeader()
+            .AllowCredentials();
+    });
 });
 // Add services to the container.
 builder.Services.AddControllers().AddJsonOptions(options =>
 {
     options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
 });
+// SignalR para actualización de resultados en tiempo real
+builder.Services.AddSignalR();
+
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddSwaggerGen(options =>
 {
@@ -118,7 +130,19 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             OnAuthenticationFailed = context =>
             {
                 return Task.CompletedTask;
-            }
+            },
+            OnMessageReceived = context =>
+            {
+                // Permitir que SignalR reciba el token desde la query string
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+                // Si la solicitud es para el hub de resultados, usar el token de la query string
+                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs/resultados"))
+                {
+                    context.Token = accessToken;
+                }
+                return Task.CompletedTask;
+            },
         };
     });
 
@@ -133,10 +157,13 @@ builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, Authorizati
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentService, CurrentUserService>();
+//Signal
+builder.Services.AddScoped<IResultadosNotificacion, ResultadosNotificacion>();
 
 var app = builder.Build();
 
-app.UseCors("AllowAll");
+//app.UseCors("AllowAll");
+app.UseCors("AngularCors");
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -156,5 +183,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+// Hub de resultados en tiempo real
+app.MapHub<ResultadosHub>("/hubs/resultados");
 
 app.Run();

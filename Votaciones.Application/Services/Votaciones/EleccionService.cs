@@ -1,10 +1,11 @@
-﻿using Votaciones.Application.Helpers;
+﻿using Microsoft.EntityFrameworkCore;
+using Votaciones.Application.DTOs.PaginacionDTO;
+using Votaciones.Application.Helpers;
 using Votaciones.Application.Interfaces.ISecurity;
 using Votaciones.Application.Interfaces.IServices;
 using Votaciones.Application.Utils;
 using Votaciones.Domain.Interfaces;
 using Votaciones.Domain.Interfaces.IRepositories;
-using Votaciones.Domain.Interfaces.IServices;
 using Votaciones.Domain.Models;
 using static Votaciones.Application.Helpers.Audit.CamposAuditablesBitacora;
 using static Votaciones.Domain.Enums.EnumsEleccion;
@@ -27,6 +28,39 @@ namespace Votaciones.Application.Services.Votaciones
             _bitacoraService = bitacoraService;
             _unitOfWork = unitOfWork;
             _currentService = currentService;
+        }
+        public async Task<PaginacionDTO<Eleccion>> ObtenerPaginacionAsync(int pagina, int pageSize, string? busqueda = null, 
+                DateTime? fechaInicio = null, DateTime? fechaFin = null, TipoEleccion? tipoEleccion = null)
+        {
+            var query = _eleccionRepository.ObtenerQuery();
+            // Filtrar por búsqueda
+            if (!string.IsNullOrWhiteSpace(busqueda))
+                query = query.Where(e => e.NombreEleccion.Contains(busqueda) || e.Descripcion!.Contains(busqueda));
+            // Filtrar por rango de fechas
+            if (fechaInicio.HasValue)
+                query = query.Where(e => e.FechaEleccion >= fechaInicio.Value);
+            if (fechaFin.HasValue)
+                query = query.Where(e => e.FechaEleccion <= fechaFin.Value);
+            // Filtrar por tipo de elección
+            if (tipoEleccion.HasValue)
+                query = query.Where(e => e.TipoEleccion == tipoEleccion.Value);
+
+            var totalRegistros = await query.CountAsync();
+            
+            var items = await query
+                .OrderBy(e => e.FechaEleccion)
+                .Skip((pagina - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            return new PaginacionDTO<Eleccion>
+            {
+                Items = items,
+                PageActual = pagina,
+                PageSize = pageSize,
+                TotalRegistros = totalRegistros,
+                TotalPages = (int)Math.Ceiling((double)totalRegistros / pageSize)
+            };
         }
 
         public async Task<IEnumerable<Eleccion>> ObtenerTodosAsync()
@@ -76,6 +110,7 @@ namespace Votaciones.Application.Services.Votaciones
             existente.Descripcion = eleccion.Descripcion;
             existente.FechaEleccion = eleccion.FechaEleccion;
             existente.Estado = eleccion.Estado;
+            existente.TipoEleccion = eleccion.TipoEleccion;
 
             // Valores DESPUÉS de modificar
             var valoresNuevos = BitacoraHelper.ObtenerValores(existente, CamposAuditablesEleccion.Campos);

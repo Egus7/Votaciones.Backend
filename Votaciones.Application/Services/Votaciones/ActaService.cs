@@ -6,6 +6,7 @@ using Votaciones.Application.DTOs.VotacionesDTO;
 using Votaciones.Application.Helpers;
 using Votaciones.Application.Interfaces.ISecurity;
 using Votaciones.Application.Interfaces.IServices;
+using Votaciones.Application.Interfaces.ISignal;
 using Votaciones.Application.Utils;
 using Votaciones.Domain.Interfaces;
 using Votaciones.Domain.Interfaces.IRepositories;
@@ -27,12 +28,15 @@ namespace Votaciones.Application.Services.Votaciones
         private readonly IMapper _mapper;
         private readonly IUnitOfWork _unitOfWork;
         private readonly ICurrentService _currentService;
+        //signal
+        private readonly IResultadosNotificacion _resultadosNotificacion;
         //bitacora
         private string tabla = "ActaEleccion";
 
-        public ActaService (IActaRepository actaRepository, IMesaElectoralRepository mesaElectoralRepository, IEleccionRepository eleccionRepository,
-                IListaElectoralRepository listaElectoralRepository, ICandidatoRepository candidatoRepository, IZonaRepository zonaRepository, 
-                IBitacoraService bitacoraService, IMapper mapper, IUnitOfWork unitOfWork, ICurrentService currentService)
+        public ActaService(IActaRepository actaRepository, IMesaElectoralRepository mesaElectoralRepository, IEleccionRepository eleccionRepository,
+                IListaElectoralRepository listaElectoralRepository, ICandidatoRepository candidatoRepository, IZonaRepository zonaRepository,
+                IBitacoraService bitacoraService, IMapper mapper, IUnitOfWork unitOfWork, ICurrentService currentService, 
+                IResultadosNotificacion resultadosNotificacion)
         {
             _actaRepository = actaRepository;
             _mesaElectoralRepository = mesaElectoralRepository;
@@ -44,9 +48,10 @@ namespace Votaciones.Application.Services.Votaciones
             _mapper = mapper;
             _unitOfWork = unitOfWork;
             _currentService = currentService;
+            _resultadosNotificacion = resultadosNotificacion;
         }
 
-        public async Task<PaginacionDTO<ActaDTO>> ObtenerPaginacionAsync(Guid eleccionId, int pagina, int pageSize, Guid? provinciaId = null, 
+        public async Task<PaginacionDTO<ActaDTO>> ObtenerPaginacionAsync(Guid eleccionId, int pagina, int pageSize, Guid? provinciaId = null,
             Guid? cantonId = null, Guid? parroquiaId = null, Guid? zonaId = null, Guid? mesaId = null, EstadoActa? estadoActa = null, TipoCandidato? tipoCandidato = null)
         {
             var query = _actaRepository.ObtenerQuery().Where(x => x.EleccionId == eleccionId);
@@ -281,9 +286,9 @@ namespace Votaciones.Application.Services.Votaciones
                     if (listaElectoral == null)
                         throw new KeyNotFoundException($"La lista electoral no existe.");
                     if (!listaElectoral.Activo)
-                        throw new InvalidOperationException($"La lista electoral '{listaElectoral.NombreLista}' está suspendida.");               
+                        throw new InvalidOperationException($"La lista electoral '{listaElectoral.NombreLista}' está suspendida.");
                     // Verificar que la lista participe en esta elección
-                    var listaParticipa = await _candidatoRepository.ExistePorEleccionListaTipoAsync(acta.EleccionId, 
+                    var listaParticipa = await _candidatoRepository.ExistePorEleccionListaTipoAsync(acta.EleccionId,
                             detalleDto.ListaElectoralId, acta.TipoCandidato);
                     if (!listaParticipa)
                         throw new InvalidOperationException($"La lista electoral '{listaElectoral.NombreLista}' no tiene candidatos " +
@@ -293,16 +298,16 @@ namespace Votaciones.Application.Services.Votaciones
                     var listasPrincipales = await _candidatoRepository.ExisteListaPrincipalPorEleccionTipoAsync(acta.EleccionId,
                             detalleDto.ListaElectoralId, acta.TipoCandidato);
                     if (!listasPrincipales)
-                        throw new InvalidOperationException($"La lista electoral '{listaElectoral.NombreLista}' no es la lista principal " + 
+                        throw new InvalidOperationException($"La lista electoral '{listaElectoral.NombreLista}' no es la lista principal " +
                                 $"de una candidatura de {acta.TipoCandidato} en esta elección.");
 
                     detalleDto.CandidatoId = null;
-                } 
+                }
                 else
                 {
                     if (detalleDto.CandidatoId == null || detalleDto.CandidatoId == Guid.Empty)
                         throw new ArgumentException("El candidato es obligatorio.");
-                    
+
                     var candidato = await _candidatoRepository.ObtenerPorIdAsync(detalleDto.CandidatoId.Value);
                     if (candidato == null)
                         throw new KeyNotFoundException($"El candidato no existe.");
@@ -337,13 +342,16 @@ namespace Votaciones.Application.Services.Votaciones
                 // Bitácora
                 var valoresNuevos = await ObtenerValoresAuditoria(acta, eleccion, mesaElec);
 
-                await _bitacoraService.RegistrarBitacoraAsync("INSERT", tabla, acta.IdActa.ToString(), 
-                    $"Acta registrada para la mesa '{mesaElec.CodigoMesa}-{acta.TipoCandidato}'.", acta.EleccionId, 
+                await _bitacoraService.RegistrarBitacoraAsync("INSERT", tabla, acta.IdActa.ToString(),
+                    $"Acta registrada para la mesa '{mesaElec.CodigoMesa}-{acta.TipoCandidato}'.", acta.EleccionId,
                     _currentService.UsuarioId, null, valoresNuevos);
                 #endregion
 
                 await _unitOfWork.SaveChangesAsync();
                 await _unitOfWork.CommitTransactionAsync();
+                // Notificar resultados en tiempo real (signalR)
+                await _resultadosNotificacion.NotificarResultadosActualizadosAsync(acta.EleccionId, acta.TipoCandidato, mesaElec.ZonaId!, 
+                        mesaElec.Zona!.ParroquiaId!, mesaElec.Zona!.Parroquia!.CantonId!, mesaElec.Zona!.Parroquia!.Canton!.ProvinciaId!);
 
                 return acta;
             }
@@ -360,9 +368,9 @@ namespace Votaciones.Application.Services.Votaciones
             if (existente == null)
                 throw new KeyNotFoundException("El acta no existe.");
 
-            if (existente.Estado != EstadoActa.Registrada && existente.Estado != EstadoActa.ConInconsistencia)
-                throw new InvalidOperationException($"El acta no puede ser modificada en su estado actual {existente.Estado}.");
-
+            if (existente.Estado != EstadoActa.Registrada && existente.Estado != EstadoActa.EnRevision &&
+                    existente.Estado != EstadoActa.ConInconsistencia)
+                throw new InvalidOperationException($"El acta no puede ser modificada en su estado actual '{existente.Estado}'.");
 
             #region Validar Acta
             // validar Acta
@@ -370,11 +378,24 @@ namespace Votaciones.Application.Services.Votaciones
                 throw new ArgumentException("La elección es obligatoria.");
             if (acta.EleccionId != existente.EleccionId)
                 throw new ArgumentException("No se puede modificar la elección del acta.");
+            // validar elección
+            var eleccion = await _eleccionRepository.ObtenerPorIdAsync(acta.EleccionId);
+            if (eleccion == null)
+                throw new KeyNotFoundException("La elección del acta no existe.");
+            if (eleccion.Estado == EstadoEleccion.Cerrada)
+                throw new InvalidOperationException("La elección está cerrada.");
+
             // validarMesa
             if (acta.MesaElectoralId == Guid.Empty)
                 throw new ArgumentException("La mesa electoral es obligatorio.");
             if (acta.MesaElectoralId != existente.MesaElectoralId)
                 throw new ArgumentException("No se puede modificar la mesa electoral del acta.");
+            // validar mesa 
+            var mesaElec = await _mesaElectoralRepository.ObtenerPorIdAsync(acta.MesaElectoralId);
+            if (mesaElec == null)
+                throw new KeyNotFoundException("La mesa electoral del acta no existe.");
+            if (!mesaElec.Activa)
+                throw new ArgumentException("La mesa ya está cerrada.");
             // validar tipo de candidato
             if (acta.TipoCandidato != existente.TipoCandidato)
                 throw new ArgumentException("No se puede modificar la dignidad del acta.");
@@ -390,14 +411,6 @@ namespace Votaciones.Application.Services.Votaciones
             if (acta.ActaDetalles.Count != existente.ActaDetalles.Count)
                 throw new ArgumentException("No se pueden agregar ni eliminar candidatos o listas del acta.");
             #endregion
-
-            // OBTENER DATOS PARA AUDITORÍA
-            var eleccion = await _eleccionRepository.ObtenerPorIdAsync(existente.EleccionId);
-            if (eleccion == null)
-                throw new KeyNotFoundException("La elección del acta no existe.");
-            var mesaElec = await _mesaElectoralRepository.ObtenerPorIdAsync(existente.MesaElectoralId);
-            if (mesaElec == null)
-                throw new KeyNotFoundException("La mesa electoral del acta no existe.");
 
             //Valores anteriores
             var valoresAnteriores = await ObtenerValoresAuditoria(existente, eleccion, mesaElec);
@@ -421,18 +434,18 @@ namespace Votaciones.Application.Services.Votaciones
                     if (detalleDto.ListaElectoralId == Guid.Empty)
                         throw new ArgumentException("La lista electoral es obligatoria.");
                     // Buscar el detalle existente por lista
-                    detalleExistente = existente.ActaDetalles.FirstOrDefault(x =>x.ListaElectoralId == detalleDto.ListaElectoralId);
+                    detalleExistente = existente.ActaDetalles.FirstOrDefault(x => x.ListaElectoralId == detalleDto.ListaElectoralId);
                     if (detalleExistente == null)
                         throw new KeyNotFoundException($"La lista electoral no pertenece al acta.");
 
                     detalleExistente.Votos = detalleDto.Votos;
                     // En concejales no existe candidato individual
                     detalleExistente.CandidatoId = null;
-                } 
+                }
                 else
                 {
                     if (detalleDto.CandidatoId == null || detalleDto.CandidatoId == Guid.Empty)
-                        throw new ArgumentException("El candidato es obligatorio.");                    
+                        throw new ArgumentException("El candidato es obligatorio.");
                     // Buscar el detalle existente por candidato
                     detalleExistente = existente.ActaDetalles.FirstOrDefault(x => x.CandidatoId == detalleDto.CandidatoId);
                     if (detalleExistente == null)
@@ -444,28 +457,43 @@ namespace Votaciones.Application.Services.Votaciones
 
             // Recalcular total
             existente.TotalVotos = existente.ActaDetalles.Sum(x => x.Votos) + existente.VotosBlancos + existente.VotosNulos;
-            //existente.UsuarioModificacionId = usuarioId;
 
             await _unitOfWork.BeginTransactionAsync();
 
             try
             {
-                //valores nuevos 
+                // Valores nuevos después de actualizar los datos
                 var valoresNuevos = await ObtenerValoresAuditoria(existente, eleccion, mesaElec);
-                //cambios
                 var cambios = BitacoraHelper.ObtenerSoloCambios(valoresAnteriores, valoresNuevos);
+
+                // Si hubo cambios reales y el acta está Registrada o ConInconsistencia, pasarla automáticamente a EnRevision.
+                if (cambios.Nuevos.Any() && (existente.Estado == EstadoActa.Registrada ||
+                        existente.Estado == EstadoActa.ConInconsistencia))
+                {
+                    existente.Estado = EstadoActa.EnRevision;
+                    // Volver a obtener la auditoría para incluir el nuevo estado.
+                    valoresNuevos = await ObtenerValoresAuditoria(existente, eleccion, mesaElec);
+                    cambios = BitacoraHelper.ObtenerSoloCambios(valoresAnteriores, valoresNuevos);
+                }
+                // Registrar bitácora solo si hay cambios
                 if (cambios.Nuevos.Any())
                 {
                     existente.UsuarioModificacionId = _currentService.UsuarioId;
                     existente.FechaModificacion = Fecha.DevolverDatetime(DateTime.UtcNow.ToString("o"));
-                    // Bitácora
+
                     await _bitacoraService.RegistrarBitacoraAsync("UPDATE", tabla, existente.IdActa.ToString(),
-                        $"Acta modificada para la mesa '{mesaElec.CodigoMesa}-{acta.TipoCandidato}'.", acta.EleccionId, 
+                        $"Acta modificada para la mesa '{mesaElec.CodigoMesa}-{existente.TipoCandidato}'.", existente.EleccionId,
                         _currentService.UsuarioId, cambios.Anteriores, cambios.Nuevos);
                 }
 
                 await _unitOfWork.SaveChangesAsync();
                 await _unitOfWork.CommitTransactionAsync();
+                // Notificar resultados en tiempo real (signalR) - solo si hubo cambios
+                if (cambios.Nuevos.Any())
+                {
+                    await _resultadosNotificacion.NotificarResultadosActualizadosAsync(acta.EleccionId, acta.TipoCandidato, mesaElec.ZonaId!, 
+                        mesaElec.Zona!.ParroquiaId!, mesaElec.Zona!.Parroquia!.CantonId!, mesaElec.Zona!.Parroquia!.Canton!.ProvinciaId!);
+                }
 
                 return existente;
             }
@@ -481,6 +509,11 @@ namespace Votaciones.Application.Services.Votaciones
             var acta = await _actaRepository.ObtenerPorIdAsync(id);
             if (acta == null)
                 throw new KeyNotFoundException("El acta no existe.");
+            // si la acta ya esta validada o anulada no se puede cambiar de estado
+            if (acta.Estado == EstadoActa.Validada)
+                throw new InvalidOperationException("No se puede cambiar de estado porque el acta ya esta validada.");
+            if (acta.Estado == EstadoActa.Anulada)
+                throw new InvalidOperationException("No se puede cambiar de estado porque el acta ya esta anulada.");
 
             #region Validar cambio estado
             var estadoAnterior = acta.Estado;
@@ -493,38 +526,50 @@ namespace Votaciones.Application.Services.Votaciones
             var eleccion = await _eleccionRepository.ObtenerPorIdAsync(acta.EleccionId);
             if (eleccion == null)
                 throw new KeyNotFoundException("La elección del acta no existe.");
+            if (eleccion.Estado == EstadoEleccion.Cerrada)
+                throw new InvalidOperationException("La elección está cerrada.");
             // validar Mesa Electoral
             var mesa = await _mesaElectoralRepository.ObtenerPorIdAsync(acta.MesaElectoralId);
             if (mesa == null)
                 throw new KeyNotFoundException("La mesa electoral del acta no existe.");
+            if (!mesa.Activa)
+                throw new InvalidOperationException("La mesa electoral ya está cerrada.");
             #endregion
 
             // Valores anteriores
             var valoresAnteriores = await ObtenerValoresAuditoria(acta, eleccion, mesa);
-            // Cambiar estado
-            acta.Estado = nuevoEstado;
-            acta.FechaModificacion = Fecha.DevolverDatetime(DateTime.UtcNow.ToString("o"));
-            
-            // Si se valida, cerrar mesa
-            if (nuevoEstado == EstadoActa.Validada)
-                mesa.Activa = false;
-            // Si se anula, NO cerrar mesa
-            if (nuevoEstado == EstadoActa.Anulada)
-                mesa.Activa = true;
-
-            // Valores nuevos
-            var valoresNuevos = await ObtenerValoresAuditoria(acta, eleccion, mesa);
-            var cambios = BitacoraHelper.ObtenerSoloCambios(valoresAnteriores, valoresNuevos);
 
             await _unitOfWork.BeginTransactionAsync();
 
             try
             {
-                await _bitacoraService.RegistrarBitacoraAsync("UPDATE", tabla, acta.IdActa.ToString(), 
+                // Cambiar estado
+                acta.Estado = nuevoEstado;
+                acta.UsuarioModificacionId = _currentService.UsuarioId;
+                acta.FechaModificacion = Fecha.DevolverDatetime(DateTime.UtcNow.ToString("o"));
+                // Si el acta se acaba de validar, comprobar si corresponde cerrar la mesa.
+                if (nuevoEstado == EstadoActa.Validada)
+                {
+                    var todasValidadas = await TodasLasActasObligatoriasValidadasAsync(mesa, eleccion.TipoEleccion, acta.IdActa, nuevoEstado);
+
+                    if (todasValidadas)
+                        mesa.Activa = false;
+                }
+                // Valores nuevos
+                var valoresNuevos = await ObtenerValoresAuditoria(acta, eleccion, mesa);
+                var cambios = BitacoraHelper.ObtenerSoloCambios(valoresAnteriores, valoresNuevos);
+
+                await _bitacoraService.RegistrarBitacoraAsync("UPDATE", tabla, acta.IdActa.ToString(),
                     $"Estado del acta modificado a '{nuevoEstado}'.", acta.EleccionId, _currentService.UsuarioId, cambios.Anteriores, cambios.Nuevos);
 
                 await _unitOfWork.SaveChangesAsync();
                 await _unitOfWork.CommitTransactionAsync();
+
+                // llamar a mesaElectoral para obtener la zona, parroquia, canton y provincia
+                var mesaElectoral = await _mesaElectoralRepository.ObtenerPorIdAsync(acta.MesaElectoralId);
+                // Notificar resultados en tiempo real (signalR)
+                await _resultadosNotificacion.NotificarResultadosActualizadosAsync(acta.EleccionId, acta.TipoCandidato, mesaElectoral!.ZonaId!,
+                       mesaElectoral!.Zona!.ParroquiaId!, mesaElectoral!.Zona!.Parroquia!.CantonId!, mesaElectoral!.Zona!.Parroquia!.Canton!.ProvinciaId!);
 
                 return acta;
             }
@@ -567,7 +612,7 @@ namespace Votaciones.Application.Services.Votaciones
             else
             {
                 valores["Detalles"] = acta.ActaDetalles
-                .Select(d => new { Candidato = d.Candidato?.NombreCandidato, 
+                .Select(d => new { Candidato = d.Candidato?.NombreCandidato,
                     Lista = d.ListaElectoral?.NombreLista, NumeroLista = d.ListaElectoral?.NumeroLista,
                     Votos = d.Votos })
                 .ToList();
@@ -580,14 +625,13 @@ namespace Votaciones.Application.Services.Votaciones
             var permitido = estadoActual switch
             {
                 EstadoActa.Registrada =>
-                    nuevoEstado == EstadoActa.EnRevision || nuevoEstado == EstadoActa.Anulada,
+                     nuevoEstado == EstadoActa.EnRevision || nuevoEstado == EstadoActa.ConInconsistencia
+                     || nuevoEstado == EstadoActa.Validada,
 
                 EstadoActa.EnRevision =>
-                    nuevoEstado == EstadoActa.ConInconsistencia ||
-                    nuevoEstado == EstadoActa.Validada || nuevoEstado == EstadoActa.Anulada,
+                    nuevoEstado == EstadoActa.ConInconsistencia || nuevoEstado == EstadoActa.Validada,
 
                 EstadoActa.ConInconsistencia =>
-                    nuevoEstado == EstadoActa.Registrada ||
                     nuevoEstado == EstadoActa.EnRevision || nuevoEstado == EstadoActa.Anulada,
 
                 EstadoActa.Validada => false,
@@ -598,11 +642,48 @@ namespace Votaciones.Application.Services.Votaciones
 
             if (!permitido)
             {
-                throw new InvalidOperationException($"No se permite cambiar el acta de " + 
+                throw new InvalidOperationException($"No se permite cambiar el acta de " +
                     $"'{estadoActual}' a '{nuevoEstado}'.");
             }
         }
+        /// Obtener tipos de acta obligatorios según el tipo de elección y si la parroquia es rural
+        private List<TipoCandidato> ObtenerTiposActaObligatorios(TipoEleccion tipoEleccion, bool parroquiaRural)
+        {
+            return tipoEleccion switch
+            {
+                TipoEleccion.Seccional => parroquiaRural ? new List<TipoCandidato>
+                {
+                    TipoCandidato.Alcalde,
+                    TipoCandidato.ConcejalUrbano,
+                    TipoCandidato.ConcejalRural
+                } : new List<TipoCandidato>
+                {
+                    TipoCandidato.Alcalde,
+                    TipoCandidato.ConcejalUrbano
+                },
+                TipoEleccion.General => new List<TipoCandidato>
+                {
+                    TipoCandidato.Presidente,
+                },
 
+                _ => throw new InvalidOperationException($"Tipo de elección no soportado: {tipoEleccion}")
+            };
+        }
+
+        private async Task<bool> TodasLasActasObligatoriasValidadasAsync(MesaElectoral mesa, TipoEleccion tipoEleccion, 
+            Guid actaActualId, EstadoActa nuevoEstado)
+        {
+            //Obtener zona
+            var zona = await _mesaElectoralRepository.ObtenerZonaAsync(mesa.ZonaId);
+            var parroquia = await _zonaRepository.ObtenerParroquiaPorIdAsync(zona!.ParroquiaId);
+
+            var actas = await _actaRepository.ObtenerQuery().Where(x => x.MesaElectoralId == mesa.IdMesaElectoral).ToListAsync();
+
+            var tiposObligatorios = ObtenerTiposActaObligatorios(tipoEleccion, parroquia!.ParroquiaRural);
+
+            return tiposObligatorios.All(tipo => actas.Any(acta => acta.TipoCandidato == tipo && 
+                (acta.IdActa == actaActualId ? nuevoEstado : acta.Estado) == EstadoActa.Validada));
+        }
         #endregion
 
     }

@@ -12,6 +12,7 @@ namespace Votaciones.Application.Helpers.Audit
                 nameof(Eleccion.Descripcion),
                 nameof(Eleccion.FechaEleccion),
                 nameof(Eleccion.Estado),
+                nameof(Eleccion.TipoEleccion),
                 nameof(Eleccion.FechaCreacion),
             };
         }

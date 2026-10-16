@@ -13,7 +13,10 @@ namespace Votaciones.Infrastructure.Persistence.Repositories
         {
             _dbContext = dbContext;
         }
-
+        public IQueryable<Eleccion> ObtenerQuery()
+        {
+            return _dbContext.Elecciones.AsNoTracking();
+        }
         public async Task<Eleccion?> ObtenerPorIdAsync(Guid id)
         {
             return await _dbContext.Elecciones.FirstOrDefaultAsync(x => x.IdEleccion == id);

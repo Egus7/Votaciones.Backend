@@ -18,6 +18,9 @@ namespace Votaciones.Application.Services.Votaciones
 
         public async Task<ResultadoEleccionDTO> ObtenerPorEleccionAsync(Guid eleccionId, TipoCandidato tipoCandidato, TipoResultado tipoResultado)
         {
+            //validar que sea valido para el ambito nacional
+            ValidarAmbito(tipoCandidato, "Nacional");
+
             var mesasQuery = _resultadoRepository.ObtenerMesasQuery().Where(x => x.EleccionId == eleccionId);
 
             var actasQuery = _resultadoRepository.ObtenerActasQuery().Where(x => x.EleccionId == eleccionId 
@@ -26,8 +29,26 @@ namespace Votaciones.Application.Services.Votaciones
             return await CalcularResultadosAsync(mesasQuery, actasQuery, tipoCandidato, tipoResultado);
         }
 
+        public async Task<ResultadoEleccionDTO> ObtenerPorProvinciaAsync(Guid eleccionId, Guid provinciaId, TipoCandidato tipoCandidato, TipoResultado tipoResultado)
+        {
+            //validar que sea valido para el ambito provincia
+            ValidarAmbito(tipoCandidato, "Provincia");
+
+            var mesasQuery = _resultadoRepository.ObtenerMesasQuery()
+                .Where(x => x.EleccionId == eleccionId && x.Zona!.Parroquia!.Canton!.ProvinciaId == provinciaId);
+
+            var actasQuery = _resultadoRepository.ObtenerActasQuery()
+                .Where(x => x.EleccionId == eleccionId
+                    && x.TipoCandidato == tipoCandidato && x.MesaElectoral!.Zona!.Parroquia!.Canton!.ProvinciaId == provinciaId);
+
+            return await CalcularResultadosAsync(mesasQuery, actasQuery, tipoCandidato, tipoResultado);
+        }
+
         public async Task<ResultadoEleccionDTO> ObtenerPorCantonAsync(Guid eleccionId, Guid cantonId, TipoCandidato tipoCandidato, TipoResultado tipoResultado)
         {
+            //validar que sea valido para el ambito canton
+            ValidarAmbito(tipoCandidato, "Canton");
+
             var mesasQuery = _resultadoRepository.ObtenerMesasQuery()
                 .Where(x => x.EleccionId == eleccionId && x.Zona!.Parroquia!.CantonId == cantonId);
 
@@ -40,6 +61,9 @@ namespace Votaciones.Application.Services.Votaciones
 
         public async Task<ResultadoEleccionDTO> ObtenerPorParroquiaAsync(Guid eleccionId, Guid parroquiaId, TipoCandidato tipoCandidato, TipoResultado tipoResultado)
         {
+            //validar que sea valido para el ambito parroquia
+            ValidarAmbito(tipoCandidato, "Parroquia");
+
             var mesasQuery = _resultadoRepository.ObtenerMesasQuery()
                 .Where(x => x.EleccionId == eleccionId && x.Zona!.ParroquiaId == parroquiaId);
 
@@ -52,6 +76,9 @@ namespace Votaciones.Application.Services.Votaciones
 
         public async Task<ResultadoEleccionDTO> ObtenerPorZonaAsync(Guid eleccionId, Guid zonaId, TipoCandidato tipoCandidato, TipoResultado tipoResultado)
         {
+            //validar que sea valido para el ambito zona
+            ValidarAmbito(tipoCandidato, "Zona");
+
             var mesasQuery = _resultadoRepository.ObtenerMesasQuery()
                 .Where(x => x.EleccionId == eleccionId && x.ZonaId == zonaId);
 
@@ -63,11 +90,35 @@ namespace Votaciones.Application.Services.Votaciones
         }
 
         #region Metodos privados
+        private static void ValidarAmbito(TipoCandidato tipoCandidato, string nivelGeografico)
+        {
+            if (!Enum.IsDefined(typeof(TipoCandidato), tipoCandidato))
+                throw new InvalidOperationException("El tipo de candidatura ingresado no es válido.");
+
+            bool permitido = nivelGeografico switch
+            {
+                "Nacional" => tipoCandidato == TipoCandidato.Presidente,
+                "Provincia" => tipoCandidato is TipoCandidato.Presidente or TipoCandidato.Prefecto,
+                "Canton" =>
+                    tipoCandidato is TipoCandidato.Presidente or TipoCandidato.Prefecto 
+                        or TipoCandidato.Alcalde or TipoCandidato.ConcejalUrbano or TipoCandidato.ConcejalRural,
+                "Parroquia" or "Zona" =>
+                    tipoCandidato is TipoCandidato.Presidente or TipoCandidato.Prefecto
+                        or TipoCandidato.Alcalde or TipoCandidato.ConcejalUrbano or TipoCandidato.ConcejalRural,
+
+                _ => false
+            };
+
+            if (!permitido)
+            {
+                throw new InvalidOperationException(
+                    $"La dignidad {tipoCandidato} no permite consultar resultados a nivel {nivelGeografico}.");
+            }
+        }
+
         private async Task<ResultadoEleccionDTO> CalcularResultadosAsync(IQueryable<MesaElectoral> mesasQuery, 
             IQueryable<ActaEleccion> actasQuery, TipoCandidato tipoCandidato, TipoResultado tipoResultado)
         {
-            if (!Enum.IsDefined(typeof(TipoCandidato), tipoCandidato))
-                throw new InvalidOperationException("El tipo de candidatura ingresada no es válida.");
 
             var resultado = new ResultadoEleccionDTO();
 
@@ -86,7 +137,8 @@ namespace Votaciones.Application.Services.Votaciones
                     actasResultado = actasQuery.Where(x => x.Estado == EstadoActa.Validada);
                     break;
                 case TipoResultado.Preliminar:
-                    actasResultado = actasQuery.Where(x => x.Estado == EstadoActa.Registrada || x.Estado == EstadoActa.Validada);
+                    actasResultado = actasQuery.Where(x => x.Estado == EstadoActa.Registrada || x.Estado == EstadoActa.EnRevision || 
+                        x.Estado == EstadoActa.Validada);
                     break;
                 default:
                     throw new InvalidOperationException("El tipo de resultado ingresado no es válido.");

@@ -21,8 +21,9 @@ namespace Votaciones.Infrastructure.Persistence.Repositories
 
         public async Task<MesaElectoral?> ObtenerPorIdAsync(Guid id)
         {
-            return await _context.MesasElectorales.Include(x => x.Zona)
-                .FirstOrDefaultAsync(x => x.IdMesaElectoral == id);
+            return await _context.MesasElectorales.Include(m => m.Zona).ThenInclude(z => z!.Parroquia)
+                .ThenInclude(p => p!.Canton).ThenInclude(c => c!.Provincia)
+                .FirstOrDefaultAsync(m => m.IdMesaElectoral == id);
         }
         public async Task<int> ObtenerSiguienteNumeroMesaAsync(Guid eleccionId, Guid zonaId, TipoMesa tipoMesa)
         {

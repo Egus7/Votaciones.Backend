@@ -31,6 +31,15 @@ namespace Votaciones.Api.Controllers
             return Ok(resultado);
         }
 
+        // GET: api/Resultados/eleccion/provincia
+        [HttpGet("eleccion/provincia")]
+        [Authorize(Policy = RolPermisos.ResultadosView)]
+        public async Task<ActionResult<ResultadoEleccionDTO>> ObtenerPorProvincia(Guid eleccionId, Guid provinciaId, TipoCandidato tipoCandidato, TipoResultado tipoResultado)
+        {
+            var resultado = await _resultadoService.ObtenerPorProvinciaAsync(eleccionId, provinciaId, tipoCandidato, tipoResultado);
+            return Ok(resultado);
+        }
+
         // GET: api/Resultados/eleccion/canton
         [HttpGet("eleccion/canton")]
         [Authorize(Policy = RolPermisos.ResultadosView)]

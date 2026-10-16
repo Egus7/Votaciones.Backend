@@ -1,8 +1,10 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Votaciones.Application.DTOs.PaginacionDTO;
+using Votaciones.Application.Interfaces.IServices;
 using Votaciones.Application.Security;
-using Votaciones.Domain.Interfaces.IServices;
 using Votaciones.Domain.Models;
+using static Votaciones.Domain.Enums.EnumsEleccion;
 
 namespace Votaciones.Api.Controllers
 {
@@ -16,6 +18,17 @@ namespace Votaciones.Api.Controllers
         public EleccionesController(IEleccionService eleccionService)
         {
             _eleccionService = eleccionService;
+        }
+
+        [HttpGet("paginacion")]
+        [Authorize(Policy = RolPermisos.EleccionesView)]
+        public async Task<ActionResult<PaginacionDTO<Eleccion>>> ObtenerPaginacion([FromQuery] int pagina = 1, [FromQuery] int pageSize = 7,
+            [FromQuery] string? busqueda = null, [FromQuery] DateTime? fechaInicio = null, [FromQuery] DateTime? fechaFin = null, 
+            [FromQuery] TipoEleccion? tipoEleccion = null)
+        {
+            var resultados = await _eleccionService.ObtenerPaginacionAsync(pagina, pageSize, busqueda, fechaInicio, fechaFin, tipoEleccion);
+            
+            return Ok(resultados);
         }
 
         [HttpGet]

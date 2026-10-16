@@ -14,6 +14,7 @@ namespace Votaciones.Domain.Models
         [MaxLength(200)]
         public string NombreEleccion { get; set; } = string.Empty;
 
+        public TipoEleccion TipoEleccion { get; set; }
         [MaxLength(500)]
         public string? Descripcion { get; set; }
         [Required]

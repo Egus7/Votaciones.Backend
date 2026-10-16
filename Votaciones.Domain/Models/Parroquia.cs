@@ -21,6 +21,7 @@ namespace Votaciones.Domain.Models
         [MaxLength(100)]
         public string NombreParroquia { get; set; } = string.Empty;
 
+        public bool ParroquiaRural { get; set; }
         [Required]
         public bool Activo { get; set; }
     }

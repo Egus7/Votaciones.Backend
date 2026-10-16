@@ -48,7 +48,7 @@ namespace Votaciones.Infrastructure.Migrations
 
                     b.HasIndex("ListaElectoralId");
 
-                    b.ToTable("ActaDetalle", (string)null);
+                    b.ToTable("ActaDetalle");
                 });
 
             modelBuilder.Entity("Votaciones.Domain.Models.ActaEleccion", b =>
@@ -96,7 +96,7 @@ namespace Votaciones.Infrastructure.Migrations
 
                     b.HasIndex("MesaElectoralId");
 
-                    b.ToTable("ActaEleccion", (string)null);
+                    b.ToTable("ActaEleccion");
                 });
 
             modelBuilder.Entity("Votaciones.Domain.Models.AdmBitacora", b =>
@@ -170,7 +170,7 @@ namespace Votaciones.Infrastructure.Migrations
 
                     b.HasKey("IdRol");
 
-                    b.ToTable("AdmRol", (string)null);
+                    b.ToTable("AdmRol");
                 });
 
             modelBuilder.Entity("Votaciones.Domain.Models.AdmUsuario", b =>
@@ -204,7 +204,7 @@ namespace Votaciones.Infrastructure.Migrations
 
                     b.HasIndex("RolId");
 
-                    b.ToTable("AdmUsuario", (string)null);
+                    b.ToTable("AdmUsuario");
                 });
 
             modelBuilder.Entity("Votaciones.Domain.Models.Candidato", b =>
@@ -249,7 +249,7 @@ namespace Votaciones.Infrastructure.Migrations
 
                     b.HasIndex("ProvinciaId");
 
-                    b.ToTable("Candidato", (string)null);
+                    b.ToTable("Candidato");
                 });
 
             modelBuilder.Entity("Votaciones.Domain.Models.Canton", b =>
@@ -273,7 +273,7 @@ namespace Votaciones.Infrastructure.Migrations
 
                     b.HasIndex("ProvinciaId");
 
-                    b.ToTable("Canton", (string)null);
+                    b.ToTable("Canton");
                 });
 
             modelBuilder.Entity("Votaciones.Domain.Models.Eleccion", b =>
@@ -303,9 +303,12 @@ namespace Votaciones.Infrastructure.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<int>("TipoEleccion")
+                        .HasColumnType("int");
+
                     b.HasKey("IdEleccion");
 
-                    b.ToTable("Eleccion", (string)null);
+                    b.ToTable("Eleccion");
                 });
 
             modelBuilder.Entity("Votaciones.Domain.Models.ListaCandidato", b =>
@@ -329,7 +332,7 @@ namespace Votaciones.Infrastructure.Migrations
 
                     b.HasIndex("ListaElectoralId");
 
-                    b.ToTable("ListaCandidato", (string)null);
+                    b.ToTable("ListaCandidato");
                 });
 
             modelBuilder.Entity("Votaciones.Domain.Models.ListaElectoral", b =>
@@ -356,7 +359,7 @@ namespace Votaciones.Infrastructure.Migrations
 
                     b.HasKey("IdListaElectoral");
 
-                    b.ToTable("ListaElectoral", (string)null);
+                    b.ToTable("ListaElectoral");
                 });
 
             modelBuilder.Entity("Votaciones.Domain.Models.MesaElectoral", b =>
@@ -392,7 +395,7 @@ namespace Votaciones.Infrastructure.Migrations
 
                     b.HasIndex("ZonaId");
 
-                    b.ToTable("MesaElectoral", (string)null);
+                    b.ToTable("MesaElectoral");
                 });
 
             modelBuilder.Entity("Votaciones.Domain.Models.Parroquia", b =>
@@ -412,11 +415,14 @@ namespace Votaciones.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<bool>("ParroquiaRural")
+                        .HasColumnType("bit");
+
                     b.HasKey("IdParroquia");
 
                     b.HasIndex("CantonId");
 
-                    b.ToTable("Parroquia", (string)null);
+                    b.ToTable("Parroquia");
                 });
 
             modelBuilder.Entity("Votaciones.Domain.Models.Provincia", b =>
@@ -440,7 +446,7 @@ namespace Votaciones.Infrastructure.Migrations
 
                     b.HasKey("IdProvincia");
 
-                    b.ToTable("Provincia", (string)null);
+                    b.ToTable("Provincia");
                 });
 
             modelBuilder.Entity("Votaciones.Domain.Models.Zona", b =>
@@ -464,7 +470,7 @@ namespace Votaciones.Infrastructure.Migrations
 
                     b.HasIndex("ParroquiaId");
 
-                    b.ToTable("Zona", (string)null);
+                    b.ToTable("Zona");
                 });
 
             modelBuilder.Entity("Votaciones.Domain.Models.ActaDetalle", b =>

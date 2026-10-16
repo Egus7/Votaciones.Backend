@@ -2,6 +2,11 @@
 {
     public class EnumsEleccion
     {
+        public enum TipoEleccion
+        {
+            General = 1,
+            Seccional = 2,
+        }
         public enum EstadoEleccion
         {
             Planificada = 1,
