@@ -49,6 +49,11 @@
             Oficial = 1,
             Preliminar = 2
         }
+        public enum MetodoAsignacionEscanos
+        {
+            DHondt = 1,
+            Webster = 2
+        }
 
     }
 }

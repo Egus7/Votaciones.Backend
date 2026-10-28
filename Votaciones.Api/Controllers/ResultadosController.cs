@@ -70,5 +70,38 @@ namespace Votaciones.Api.Controllers
             return Ok(resultado);
         }
 
+        // GET: api/Resultados/eleccion/mesa
+        [HttpGet("eleccion/mesa")]
+        [Authorize(Policy = RolPermisos.ResultadosView)]
+        public async Task<ActionResult<ResultadoEleccionDTO>> ObtenerPorMesa(Guid eleccionId, Guid mesaId, TipoCandidato tipoCandidato, TipoResultado tipoResultado)
+        {
+            var resultado = await _resultadoService.ObtenerPorMesaAsync(eleccionId, mesaId, tipoCandidato, tipoResultado);
+
+            return Ok(resultado);
+        }
+
+        // GET: api/Resultados/asignacionEscanos
+        [HttpGet("asignacionEscanos")]
+        [Authorize(Policy = RolPermisos.ResultadosView)]
+        public async Task<ActionResult<AsignacionConcejalesDTO>> ObtenerConcejalesEscanos(Guid eleccionId, Guid cantonId, TipoCandidato tipoCandidato, TipoResultado tipoResultado)
+        {
+            var resultado = await _resultadoService.ObtenerAsignacionConcejalesAsync(eleccionId, cantonId, tipoCandidato, tipoResultado);
+
+            return Ok(resultado);
+        }
+
+
+        [HttpGet("asignacion-concejales/excel")]
+        [Produces("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")]
+        [ProducesResponseType<Stream>(StatusCodes.Status200OK)]
+        public async Task<IActionResult> ExportarAsignacionConcejalesExcel(Guid eleccionId, Guid cantonId, TipoCandidato tipoCandidato, TipoResultado tipoResultado)
+        {
+            var archivo = await _resultadoService.ObtenerAsignacionConcejalesExcelAsync(eleccionId, cantonId, tipoCandidato, tipoResultado);
+
+            var nombreArchivo = $"Asignacion_Concejales_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx";
+
+            return File(archivo, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", nombreArchivo);
+        }
+
     }
 }

@@ -8,6 +8,7 @@ namespace Votaciones.Application.DTOs.VotacionesDTO
         public Guid ListaElectoralId { get; set; }
         public string Lista { get; set; } = string.Empty;
         public int NumeroLista { get; set; }
+        public string? NumerosLista { get; set; } = string.Empty;
         public int Votos { get; set; }
         public decimal Porcentaje { get; set; }
     }

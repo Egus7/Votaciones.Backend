@@ -13,10 +13,10 @@ namespace Votaciones.Api.Hubs
             _hubContext = hubContext;
             _logger = logger;
         }
-        public async Task NotificarResultadosActualizadosAsync(Guid eleccionId, TipoCandidato tipoCandidato, Guid zonaId, Guid parroquiaId, 
-                Guid cantonId, Guid provinciaId)
+        public async Task NotificarResultadosActualizadosAsync(Guid eleccionId, TipoCandidato tipoCandidato, Guid mesaId, Guid zonaId, 
+                Guid parroquiaId, Guid cantonId, Guid provinciaId)
         {
-            if (eleccionId == Guid.Empty || zonaId == Guid.Empty || parroquiaId == Guid.Empty || 
+            if (eleccionId == Guid.Empty || mesaId == Guid.Empty || zonaId == Guid.Empty || parroquiaId == Guid.Empty || 
                 cantonId == Guid.Empty || provinciaId == Guid.Empty || !Enum.IsDefined(typeof(TipoCandidato), tipoCandidato)) {
                 
                 _logger.LogWarning("No se notificaron resultados: los parámetros no son válidos. " +
@@ -30,7 +30,7 @@ namespace Votaciones.Api.Hubs
             {
                 var grupo = ResultadosHub.ObtenerNombreGrupo(eleccionId, tipoCandidato);
 
-                await _hubContext.Clients.Group(grupo).SendAsync("ResultadosActualizados", eleccionId, tipoCandidato, zonaId, 
+                await _hubContext.Clients.Group(grupo).SendAsync("ResultadosActualizados", eleccionId, tipoCandidato, mesaId, zonaId, 
                         parroquiaId, cantonId, provinciaId);
             }
             catch (Exception ex)

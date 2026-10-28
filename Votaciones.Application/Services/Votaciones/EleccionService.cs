@@ -111,6 +111,7 @@ namespace Votaciones.Application.Services.Votaciones
             existente.FechaEleccion = eleccion.FechaEleccion;
             existente.Estado = eleccion.Estado;
             existente.TipoEleccion = eleccion.TipoEleccion;
+            existente.MetodoEscanos = eleccion.MetodoEscanos;
 
             // Valores DESPUÉS de modificar
             var valoresNuevos = BitacoraHelper.ObtenerValores(existente, CamposAuditablesEleccion.Campos);

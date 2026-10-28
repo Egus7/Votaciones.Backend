@@ -20,6 +20,7 @@ namespace Votaciones.Domain.Models
         [Required]
         public DateTime FechaEleccion { get; set; }
         public EstadoEleccion Estado { get; set; }
+        public MetodoAsignacionEscanos MetodoEscanos { get; set; }
         public DateTime FechaCreacion { get; set; }
         public DateTime? FechaModificacion { get; set; }
     }

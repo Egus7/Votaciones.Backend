@@ -298,6 +298,9 @@ namespace Votaciones.Infrastructure.Migrations
                     b.Property<DateTime?>("FechaModificacion")
                         .HasColumnType("datetime2");
 
+                    b.Property<int>("MetodoEscanos")
+                        .HasColumnType("int");
+
                     b.Property<string>("NombreEleccion")
                         .IsRequired()
                         .HasMaxLength(200)

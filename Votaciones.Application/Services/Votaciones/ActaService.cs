@@ -350,8 +350,8 @@ namespace Votaciones.Application.Services.Votaciones
                 await _unitOfWork.SaveChangesAsync();
                 await _unitOfWork.CommitTransactionAsync();
                 // Notificar resultados en tiempo real (signalR)
-                await _resultadosNotificacion.NotificarResultadosActualizadosAsync(acta.EleccionId, acta.TipoCandidato, mesaElec.ZonaId!, 
-                        mesaElec.Zona!.ParroquiaId!, mesaElec.Zona!.Parroquia!.CantonId!, mesaElec.Zona!.Parroquia!.Canton!.ProvinciaId!);
+                await _resultadosNotificacion.NotificarResultadosActualizadosAsync(acta.EleccionId, acta.TipoCandidato, acta.MesaElectoralId!, 
+                        mesaElec.ZonaId!, mesaElec.Zona!.ParroquiaId!, mesaElec.Zona!.Parroquia!.CantonId!, mesaElec.Zona!.Parroquia!.Canton!.ProvinciaId!);
 
                 return acta;
             }
@@ -491,8 +491,8 @@ namespace Votaciones.Application.Services.Votaciones
                 // Notificar resultados en tiempo real (signalR) - solo si hubo cambios
                 if (cambios.Nuevos.Any())
                 {
-                    await _resultadosNotificacion.NotificarResultadosActualizadosAsync(acta.EleccionId, acta.TipoCandidato, mesaElec.ZonaId!, 
-                        mesaElec.Zona!.ParroquiaId!, mesaElec.Zona!.Parroquia!.CantonId!, mesaElec.Zona!.Parroquia!.Canton!.ProvinciaId!);
+                    await _resultadosNotificacion.NotificarResultadosActualizadosAsync(acta.EleccionId, acta.TipoCandidato, acta.MesaElectoralId!, 
+                        mesaElec.ZonaId!, mesaElec.Zona!.ParroquiaId!, mesaElec.Zona!.Parroquia!.CantonId!, mesaElec.Zona!.Parroquia!.Canton!.ProvinciaId!);
                 }
 
                 return existente;
@@ -568,7 +568,7 @@ namespace Votaciones.Application.Services.Votaciones
                 // llamar a mesaElectoral para obtener la zona, parroquia, canton y provincia
                 var mesaElectoral = await _mesaElectoralRepository.ObtenerPorIdAsync(acta.MesaElectoralId);
                 // Notificar resultados en tiempo real (signalR)
-                await _resultadosNotificacion.NotificarResultadosActualizadosAsync(acta.EleccionId, acta.TipoCandidato, mesaElectoral!.ZonaId!,
+                await _resultadosNotificacion.NotificarResultadosActualizadosAsync(acta.EleccionId, acta.TipoCandidato, acta.MesaElectoralId!, mesaElectoral!.ZonaId!,
                        mesaElectoral!.Zona!.ParroquiaId!, mesaElectoral!.Zona!.Parroquia!.CantonId!, mesaElectoral!.Zona!.Parroquia!.Canton!.ProvinciaId!);
 
                 return acta;

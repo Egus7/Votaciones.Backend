@@ -10,5 +10,8 @@ namespace Votaciones.Application.Interfaces.IServices
         Task<ResultadoEleccionDTO> ObtenerPorCantonAsync(Guid eleccionId, Guid cantonId, TipoCandidato tipoCandidato, TipoResultado tipoResultado);
         Task<ResultadoEleccionDTO> ObtenerPorParroquiaAsync(Guid eleccionId, Guid parroquiaId, TipoCandidato tipoCandidato, TipoResultado tipoResultado);
         Task<ResultadoEleccionDTO> ObtenerPorZonaAsync(Guid eleccionId, Guid zonaId, TipoCandidato tipoCandidato, TipoResultado tipoResultado);
+        Task<ResultadoEleccionDTO> ObtenerPorMesaAsync(Guid eleccionId, Guid mesaId, TipoCandidato tipoCandidato, TipoResultado tipoResultado);
+        Task<AsignacionConcejalesDTO> ObtenerAsignacionConcejalesAsync(Guid eleccionId, Guid cantonId, TipoCandidato tipoCandidato, TipoResultado tipoResultado);
+        Task<byte[]> ObtenerAsignacionConcejalesExcelAsync(Guid eleccionId, Guid cantonId, TipoCandidato tipoCandidato, TipoResultado tipoResultado);
     }
 }

@@ -5,7 +5,7 @@ namespace Votaciones.Domain.Interfaces.IRepositories
     public interface IResultadoRepository
     {
         IQueryable<ActaEleccion> ObtenerActasQuery();
-
         IQueryable<MesaElectoral> ObtenerMesasQuery();
+        IQueryable<Candidato> ObtenerCandidatosQuery();
     }
 }

@@ -23,5 +23,10 @@ namespace Votaciones.Infrastructure.Persistence.Repositories
             return _context.MesasElectorales.AsNoTracking();
         }
 
+        public IQueryable<Candidato> ObtenerCandidatosQuery() 
+        {
+            return _context.Candidatos.AsNoTracking();
+        }
+
     }
 }
