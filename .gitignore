@@ -1,3 +1,9 @@
+# Configuración sensible
+appsettings.json
+appsettings.Development.json
+credenciales.txt
+
+# Visual Studio
 .vs/
 bin/
 obj/

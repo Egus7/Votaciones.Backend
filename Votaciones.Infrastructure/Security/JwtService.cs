@@ -41,7 +41,7 @@ namespace Votaciones.Infrastructure.Security
 
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
             var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-            var expiracion = Fecha.DevolverDatetime(DateTime.UtcNow.ToString("o")).AddMinutes(expiracionMinutos);
+            var expiracion = DateTime.UtcNow.AddMinutes(expiracionMinutos);
 
             var token = new JwtSecurityToken(issuer: issuer, audience: audience, claims: claims,
                 expires: expiracion, signingCredentials: credentials);
@@ -53,7 +53,7 @@ namespace Votaciones.Infrastructure.Security
         {
             var expiracionMinutos = _configuration.GetValue<int?>("Jwt:ExpirationMinutes") ?? 60;
 
-            return Fecha.DevolverDatetime(DateTime.UtcNow.ToString("o")).AddMinutes(expiracionMinutos);
+            return DateTime.UtcNow.AddMinutes(expiracionMinutos);
         }
 
     }

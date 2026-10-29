@@ -12,5 +12,6 @@
     <WebStackScaffolding_DbContextTypeFullName>Votaciones.Infrastructure.Data.AppDbContext</WebStackScaffolding_DbContextTypeFullName>
     <WebStackScaffolding_IsAsyncSelected>False</WebStackScaffolding_IsAsyncSelected>
     <WebStackScaffolding_IsViewGenerationSelected>False</WebStackScaffolding_IsViewGenerationSelected>
+    <NameOfLastUsedPublishProfile>C:\Sermatick\Apis .NET\Votaciones.Backend\Votaciones.Api\Properties\PublishProfiles\votaciones-axis-api - Web Deploy.pubxml</NameOfLastUsedPublishProfile>
   </PropertyGroup>
 </Project>
