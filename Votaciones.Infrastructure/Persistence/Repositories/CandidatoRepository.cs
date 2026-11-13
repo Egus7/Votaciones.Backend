@@ -18,6 +18,10 @@ namespace Votaciones.Infrastructure.Persistence.Repositories
         {
             return _context.Candidatos.AsNoTracking();
         }
+        public IQueryable<AlianzaElectoral> ObtenerQueryAlianza()
+        {
+            return _context.AlianzasElectorales.AsNoTracking();
+        }
         public async Task<Candidato?> ObtenerPorIdAsync(Guid id)
         {
             var candidato = await _context.Candidatos.Include(x => x.ListaCandidatos)

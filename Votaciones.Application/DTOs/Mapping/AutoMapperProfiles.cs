@@ -25,6 +25,7 @@ namespace Votaciones.Application.DTOs.Mapping
                 .ForMember(dest => dest.Parroquia, opt => opt.MapFrom(src => src.Parroquia!.NombreParroquia))
                 .ForMember(dest => dest.Canton, opt => opt.MapFrom(src => src.Canton!.NombreCanton))
                 .ForMember(dest => dest.Provincia, opt => opt.MapFrom(src => src.Provincia!.NombreProvincia))
+                .ForMember(dest => dest.AlianzaElectoral, opt => opt.MapFrom(src => src.AlianzaElectoral!.NombreAlianza))
                 // Detalle
                 .ForMember(dest => dest.ListasCandidato, opt => opt.MapFrom(src => src.ListaCandidatos
                     .OrderByDescending(x => x.ListaPrincipal).ThenBy(x => x.ListaElectoral!.NumeroLista)));

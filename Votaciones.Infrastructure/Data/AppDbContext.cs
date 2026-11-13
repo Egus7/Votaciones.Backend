@@ -11,6 +11,8 @@ namespace Votaciones.Infrastructure.Data
         public DbSet<ListaElectoral> ListasElectorales { get; set; }
         public DbSet<Candidato> Candidatos { get; set; }
         public DbSet<ListaCandidato> ListaCandidatos { get; set; }
+        public DbSet<AlianzaElectoral> AlianzasElectorales { get; set; }
+        public DbSet<AlianzaDetalle> AlianzasDetalle { get; set; }
         public DbSet<ActaEleccion> ActasEleccion { get; set; }
         public DbSet<ActaDetalle> ActasDetalle { get; set; }
         public DbSet<MesaElectoral> MesasElectorales { get; set; }
@@ -69,6 +71,13 @@ namespace Votaciones.Infrastructure.Data
                 .WithMany()
                 .HasForeignKey(c => c.EleccionId)
                 .OnDelete(DeleteBehavior.Restrict); // No se permite eliminar una eleccion si tiene candidatos asociados
+            
+            //Relacion Candidato - AlianzaElectoral
+            modelBuilder.Entity<Candidato>()
+                .HasOne(c => c.AlianzaElectoral)
+                .WithMany()
+                .HasForeignKey(c => c.AlianzaElectoralId)
+                .OnDelete(DeleteBehavior.Restrict); // No se permite eliminar una alianza electoral si tiene candidatos asociados
 
             // Relacion ListaCandidato - Candidato
             modelBuilder.Entity<ListaCandidato>()
@@ -83,6 +92,20 @@ namespace Votaciones.Infrastructure.Data
                 .WithMany()
                 .HasForeignKey(x => x.ListaElectoralId)
                 .OnDelete(DeleteBehavior.Restrict); // No se permite eliminar una lista electoral si tiene lista de candidatos asociados
+
+            // Relacion AlianzaDetalle - AlianzaElectoral
+            modelBuilder.Entity<AlianzaDetalle>()
+                .HasOne(x => x.AlianzaElectoral)
+                .WithMany(x => x.AlianzaDetalles)
+                .HasForeignKey(x => x.AlianzaElectoralId)
+                .OnDelete(DeleteBehavior.Cascade); // Si se elimina una alianza electoral, se eliminan sus detalles asociados
+
+            // Relacion AlianzaDetalle - ListaElectoral
+            modelBuilder.Entity<AlianzaDetalle>()
+                .HasOne(x => x.ListaElectoral)
+                .WithMany()
+                .HasForeignKey(x => x.ListaElectoralId)
+                .OnDelete(DeleteBehavior.Restrict); // No se permite eliminar una lista electoral si tiene detalles de alianzas asociados
 
             // Relacion ActaCab - MesaElectoral
             modelBuilder.Entity<ActaEleccion>()

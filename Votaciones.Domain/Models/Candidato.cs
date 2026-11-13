@@ -34,6 +34,11 @@ namespace Votaciones.Domain.Models
         [ForeignKey(nameof(ParroquiaId))]
         [JsonIgnore]
         public Parroquia? Parroquia { get; set; }
+        public Guid? AlianzaElectoralId { get; set; }
+
+        [ForeignKey(nameof(AlianzaElectoralId))]
+        [JsonIgnore]
+        public AlianzaElectoral? AlianzaElectoral { get; set; }
         public bool Activo { get; set; }
         // Listas que respaldan al candidato
         public List<ListaCandidato> ListaCandidatos { get; set; } = new List<ListaCandidato>();

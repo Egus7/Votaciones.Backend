@@ -47,12 +47,23 @@ namespace Votaciones.Api.Controllers
             return Ok(candidato);
         }
 
+        // GET api/CandidatosController/5
+        [HttpGet("alianzas-electorales")]
+        [Authorize(Policy = RolPermisos.CandidatosView)]
+        public async Task<ActionResult<List<AlianzaElectoralDTO>>> ObtenerAlianzasDisponibles(Guid eleccionId, Guid? provinciaId, Guid? cantonId,
+            Guid? parroquiaId, [FromQuery] List<Guid> listasElectorales)
+        {
+            var alianzas = await _candidatoService.ObtenerAlianzasDisponiblesAsync(eleccionId, provinciaId, cantonId, parroquiaId, listasElectorales);
+
+            return Ok(alianzas);
+        }
+
         // POST api/CandidatosController
         [HttpPost]
         [Authorize(Policy = RolPermisos.CandidatosCreate)]
-        public async Task<ActionResult<Candidato>> CrearCandidato(Candidato candidato)
+        public async Task<ActionResult<Candidato>> CrearCandidato(Candidato candidato, string? nombreAlianza = null)
         {
-            var resultado = await _candidatoService.CrearAsync(candidato);
+            var resultado = await _candidatoService.CrearAsync(candidato, nombreAlianza);
 
             return CreatedAtAction(nameof(ObtenerPorId), new { id = resultado.IdCandidato }, resultado);
         }
@@ -60,9 +71,9 @@ namespace Votaciones.Api.Controllers
         //crear varios concejales a la vez
         [HttpPost("crearVarios")]
         [Authorize(Policy = RolPermisos.CandidatosCreate)]
-        public async Task<ActionResult> CrearVariosConcejales(List<Candidato> candidatos)
+        public async Task<ActionResult> CrearVariosConcejales(List<Candidato> candidatos, string? nombreAlianza = null)
         {
-            var resultado = await _candidatoService.CrearVariosAsync(candidatos);
+            var resultado = await _candidatoService.CrearVariosAsync(candidatos, nombreAlianza);
 
             return Ok($"{resultado.Count()} candidatos creados correctamente");
         }
@@ -70,9 +81,9 @@ namespace Votaciones.Api.Controllers
         // PUT api/CandidatosController/5
         [HttpPut("{id}")]
         [Authorize(Policy = RolPermisos.CandidatosEdit)]
-        public async Task<IActionResult> ActualizarCandidato(Guid id, Candidato candidato)
+        public async Task<IActionResult> ActualizarCandidato(Guid id, Candidato candidato, string? nombreAlianza = null)
         {
-            var resultado = await _candidatoService.ActualizarAsync(id, candidato);
+            var resultado = await _candidatoService.ActualizarAsync(id, candidato, nombreAlianza);
 
             return Ok("Candidato actualizado correctamente");
         }

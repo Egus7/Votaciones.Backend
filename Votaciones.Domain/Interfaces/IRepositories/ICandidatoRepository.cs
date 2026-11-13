@@ -6,6 +6,7 @@ namespace Votaciones.Domain.Interfaces.IRepositories
     public interface ICandidatoRepository
     {
         IQueryable<Candidato> ObtenerQuery();
+        IQueryable<AlianzaElectoral> ObtenerQueryAlianza();
         Task<Candidato?> ObtenerPorIdAsync(Guid id);
         Task<bool> ExistePorEleccionListaTipoAsync(Guid eleccionId, Guid listaId, TipoCandidato tipoCandidato, Guid? provinciaId = null, 
                 Guid? cantonId = null, Guid? parroquiaId = null, Guid? excluirCandidatoId = null);

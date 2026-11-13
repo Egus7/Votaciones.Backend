@@ -207,6 +207,66 @@ namespace Votaciones.Infrastructure.Migrations
                     b.ToTable("AdmUsuario");
                 });
 
+            modelBuilder.Entity("Votaciones.Domain.Models.AlianzaDetalle", b =>
+                {
+                    b.Property<Guid>("IdAlianzaDetalle")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AlianzaElectoralId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("ListaAlianzaPrincipal")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid>("ListaElectoralId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("IdAlianzaDetalle");
+
+                    b.HasIndex("AlianzaElectoralId");
+
+                    b.HasIndex("ListaElectoralId");
+
+                    b.ToTable("AlianzaDetalle");
+                });
+
+            modelBuilder.Entity("Votaciones.Domain.Models.AlianzaElectoral", b =>
+                {
+                    b.Property<Guid>("IdAlianzaElectoral")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("CantonId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("EleccionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("NombreAlianza")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid?>("ParroquiaId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("ProvinciaId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("IdAlianzaElectoral");
+
+                    b.HasIndex("CantonId");
+
+                    b.HasIndex("EleccionId");
+
+                    b.HasIndex("ParroquiaId");
+
+                    b.HasIndex("ProvinciaId");
+
+                    b.ToTable("AlianzaElectoral");
+                });
+
             modelBuilder.Entity("Votaciones.Domain.Models.Candidato", b =>
                 {
                     b.Property<Guid>("IdCandidato")
@@ -215,6 +275,9 @@ namespace Votaciones.Infrastructure.Migrations
 
                     b.Property<bool>("Activo")
                         .HasColumnType("bit");
+
+                    b.Property<Guid?>("AlianzaElectoralId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid?>("CantonId")
                         .HasColumnType("uniqueidentifier");
@@ -240,6 +303,8 @@ namespace Votaciones.Infrastructure.Migrations
                         .HasColumnType("int");
 
                     b.HasKey("IdCandidato");
+
+                    b.HasIndex("AlianzaElectoralId");
 
                     b.HasIndex("CantonId");
 
@@ -546,8 +611,61 @@ namespace Votaciones.Infrastructure.Migrations
                     b.Navigation("Rol");
                 });
 
+            modelBuilder.Entity("Votaciones.Domain.Models.AlianzaDetalle", b =>
+                {
+                    b.HasOne("Votaciones.Domain.Models.AlianzaElectoral", "AlianzaElectoral")
+                        .WithMany("AlianzaDetalles")
+                        .HasForeignKey("AlianzaElectoralId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Votaciones.Domain.Models.ListaElectoral", "ListaElectoral")
+                        .WithMany()
+                        .HasForeignKey("ListaElectoralId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("AlianzaElectoral");
+
+                    b.Navigation("ListaElectoral");
+                });
+
+            modelBuilder.Entity("Votaciones.Domain.Models.AlianzaElectoral", b =>
+                {
+                    b.HasOne("Votaciones.Domain.Models.Canton", "Canton")
+                        .WithMany()
+                        .HasForeignKey("CantonId");
+
+                    b.HasOne("Votaciones.Domain.Models.Eleccion", "Eleccion")
+                        .WithMany()
+                        .HasForeignKey("EleccionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Votaciones.Domain.Models.Parroquia", "Parroquia")
+                        .WithMany()
+                        .HasForeignKey("ParroquiaId");
+
+                    b.HasOne("Votaciones.Domain.Models.Provincia", "Provincia")
+                        .WithMany()
+                        .HasForeignKey("ProvinciaId");
+
+                    b.Navigation("Canton");
+
+                    b.Navigation("Eleccion");
+
+                    b.Navigation("Parroquia");
+
+                    b.Navigation("Provincia");
+                });
+
             modelBuilder.Entity("Votaciones.Domain.Models.Candidato", b =>
                 {
+                    b.HasOne("Votaciones.Domain.Models.AlianzaElectoral", "AlianzaElectoral")
+                        .WithMany()
+                        .HasForeignKey("AlianzaElectoralId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Votaciones.Domain.Models.Canton", "Canton")
                         .WithMany()
                         .HasForeignKey("CantonId");
@@ -565,6 +683,8 @@ namespace Votaciones.Infrastructure.Migrations
                     b.HasOne("Votaciones.Domain.Models.Provincia", "Provincia")
                         .WithMany()
                         .HasForeignKey("ProvinciaId");
+
+                    b.Navigation("AlianzaElectoral");
 
                     b.Navigation("Canton");
 
@@ -649,6 +769,11 @@ namespace Votaciones.Infrastructure.Migrations
             modelBuilder.Entity("Votaciones.Domain.Models.ActaEleccion", b =>
                 {
                     b.Navigation("ActaDetalles");
+                });
+
+            modelBuilder.Entity("Votaciones.Domain.Models.AlianzaElectoral", b =>
+                {
+                    b.Navigation("AlianzaDetalles");
                 });
 
             modelBuilder.Entity("Votaciones.Domain.Models.Candidato", b =>

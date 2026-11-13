@@ -46,7 +46,7 @@ namespace Votaciones.Application.Services.Votaciones
         public async Task<PaginacionDTO<CandidatoDTO>> ObtenerPaginacionAsync(Guid eleccionId, int pagina, int pageSize, string? busqueda = null,
             TipoCandidato? tipoCandidato = null, Guid? listaElectoralId = null)
         {
-            var query = _candidatoRepository.ObtenerQuery().Where(x => x.EleccionId == eleccionId);
+            var query = _candidatoRepository.ObtenerQuery().AsNoTracking().Where(x => x.EleccionId == eleccionId);
 
             // Buscar por nombre
             if (!string.IsNullOrWhiteSpace(busqueda))
@@ -67,22 +67,82 @@ namespace Votaciones.Application.Services.Votaciones
 
             var totalRegistros = await query.CountAsync();
 
-            var items = await query
-                .OrderBy(x => x.ListaCandidatos.Where(l => l.ListaPrincipal).Select(l => l.ListaElectoral!.NumeroLista).FirstOrDefault())
+            // Obtener IDs ordenados de la página
+            var idsOrdenados = await query
+                .Select(c => new
+                {
+                    c.IdCandidato, NumeroLista = c.ListaCandidatos.Where(l => l.ListaPrincipal)
+                        .Select(l => (int?)l.ListaElectoral!.NumeroLista).FirstOrDefault() ?? 0,
+                    c.TipoCandidato,
+                    c.Orden,
+                    c.ProvinciaId,
+                    c.CantonId,
+                    c.ParroquiaId,
+                    c.NombreCandidato
+                })
+                .OrderBy(x => x.NumeroLista)
                 .ThenBy(x => x.TipoCandidato)
                 .ThenBy(x => x.Orden)
                 .ThenBy(x => x.ProvinciaId)
                 .ThenBy(x => x.CantonId)
                 .ThenBy(x => x.ParroquiaId)
                 .ThenBy(x => x.NombreCandidato)
+                .ThenBy(x => x.IdCandidato)
                 .Skip((pagina - 1) * pageSize)
                 .Take(pageSize)
-                .ProjectTo<CandidatoDTO>(_mapper.ConfigurationProvider)
+                .Select(x => x.IdCandidato)
                 .ToListAsync();
+
+            if (idsOrdenados.Count == 0)
+            {
+                return new PaginacionDTO<CandidatoDTO>
+                {
+                    Items = new List<CandidatoDTO>(),
+                    PageActual = pagina,
+                    PageSize = pageSize,
+                    TotalRegistros = totalRegistros,
+                    TotalPages = (int)Math.Ceiling(totalRegistros / (double)pageSize)
+                };
+            }
+
+            // Consultar solamente los candidatos de la página
+            var candidatos = await query
+                .Where(x => idsOrdenados.Contains(x.IdCandidato))
+                .Select(x => new CandidatoDTO
+                {
+                    IdCandidato = x.IdCandidato,
+                    NombreCandidato = x.NombreCandidato,
+                    TipoCandidato = x.TipoCandidato,
+                    Orden = x.Orden,
+                    Activo = x.Activo,
+                    Eleccion = x.Eleccion!.NombreEleccion,
+                    DescripcionEleccion = x.Eleccion.Descripcion!,
+                    AlianzaElectoral = x.AlianzaElectoral != null ? x.AlianzaElectoral.NombreAlianza : null,
+                    Provincia = x.Provincia != null ? x.Provincia.NombreProvincia : null,
+                    Canton = x.Canton != null ? x.Canton.NombreCanton : null,
+                    Parroquia = x.Parroquia != null ? x.Parroquia.NombreParroquia : null,
+                    ListasCandidato = x.ListaCandidatos
+                        .OrderByDescending(l => l.ListaPrincipal)
+                        .ThenBy(l => l.ListaElectoral!.NumeroLista)
+                        .Select(l => new ListaCandidatoDTO
+                        {
+                            NumeroLista = l.ListaElectoral!.NumeroLista,
+                            NombreLista = l.ListaElectoral.NombreLista,
+                            EsPrincipal = l.ListaPrincipal
+                        })
+                        .ToList()
+                })
+                .ToListAsync();
+
+            // Mantener el orden de la primera consulta
+            var posiciones = idsOrdenados.Select((id, index) => new { id, index })
+                .ToDictionary(x => x.id, x => x.index);
+
+            candidatos = candidatos.OrderBy(x => posiciones[x.IdCandidato]).ToList();
 
             return new PaginacionDTO<CandidatoDTO>
             {
-                Items = items,
+                Items = candidatos,
                 PageActual = pagina,
                 PageSize = pageSize,
                 TotalRegistros = totalRegistros,
@@ -99,7 +159,30 @@ namespace Votaciones.Application.Services.Votaciones
                 .FirstOrDefaultAsync();
         }
 
-        public async Task<Candidato> CrearAsync(Candidato candidato)
+        public async Task<List<AlianzaElectoralDTO>> ObtenerAlianzasDisponiblesAsync(Guid eleccionId, Guid? provinciaId, Guid? cantonId,
+            Guid? parroquiaId, List<Guid> listasElectorales)
+        {
+            if (listasElectorales == null || listasElectorales.Count == 0)
+                return new List<AlianzaElectoralDTO>();
+
+            var listasSeleccionadas = listasElectorales.Distinct().ToHashSet();
+
+            // Obtener alianzas de la misma elección y zona, que tengan exactamente las mismas listas seleccionadas.
+            var alianzasDisponibles = await _candidatoRepository.ObtenerQueryAlianza()
+                .Where(a => a.EleccionId == eleccionId && a.ProvinciaId == provinciaId && a.CantonId == cantonId &&
+                    a.ParroquiaId == parroquiaId && a.AlianzaDetalles.Count == listasSeleccionadas.Count &&
+                    a.AlianzaDetalles.All(l => listasSeleccionadas.Contains(l.ListaElectoralId)))
+                .Select(a => new AlianzaElectoralDTO
+                {
+                    IdAlianzaElectoral = a.IdAlianzaElectoral,
+                    NombreAlianza = a.NombreAlianza
+                })
+                .ToListAsync();
+
+            return alianzasDisponibles;
+        }
+
+        public async Task<Candidato> CrearAsync(Candidato candidato, string? nombreAlianza = null)
         {
             var eleccion = await ValidarDatosCandidato(candidato);
             var listasElectorales = await ValidarListasAsync(candidato);
@@ -143,6 +226,9 @@ namespace Votaciones.Application.Services.Votaciones
 
             try
             {
+                // RESOLVER ALIANZA ELECTORAL
+                await ResolverAlianzaAsync(candidato, nombreAlianza);
+
                 await _candidatoRepository.AgregarAsync(candidato);
                 #region Registrar bitacora
                 //valores nuevos
@@ -164,7 +250,7 @@ namespace Votaciones.Application.Services.Votaciones
             }
         }
 
-        public async Task<List<Candidato>> CrearVariosAsync(List<Candidato> candidatos)
+        public async Task<List<Candidato>> CrearVariosAsync(List<Candidato> candidatos, string? nombreAlianza = null)
         {
             if (candidatos == null || !candidatos.Any())
                 throw new ArgumentException("Debe ingresar al menos un candidato.");
@@ -265,13 +351,22 @@ namespace Votaciones.Application.Services.Votaciones
 
             try
             {
+                // RESOLVER ALIANZA UNA SOLA VEZ
+                await ResolverAlianzaAsync(candidatos.First(), nombreAlianza);
+                // COMPARTIR LA MISMA ALIANZA ENTRE TODOS LOS CANDIDATOS
+                var alianzaId = candidatos.First().AlianzaElectoralId;
+                var alianza = candidatos.First().AlianzaElectoral;
+
                 foreach (var candidato in candidatos)
                 {
+                    candidato.AlianzaElectoralId = alianzaId;
+                    candidato.AlianzaElectoral = alianza;
+                    // agregar candidato
                     await _candidatoRepository.AgregarAsync(candidato);
                 }
 
                 #region Registrar bitacora
-                
+
                 // UNA SOLA BITÁCORA
                 var cantidad = candidatos.Count;
                 var listaPrincipal = candidatos.First().ListaCandidatos.First(x => x.ListaPrincipal);
@@ -295,7 +390,7 @@ namespace Votaciones.Application.Services.Votaciones
             }
         }
 
-        public async Task<Candidato> ActualizarAsync(Guid id, Candidato candidato)
+        public async Task<Candidato> ActualizarAsync(Guid id, Candidato candidato, string? nombreAlianza = null)
         {
             var existente = await _candidatoRepository.ObtenerPorIdAsync(id);
             if (existente == null)
@@ -400,7 +495,15 @@ namespace Votaciones.Application.Services.Votaciones
 
             try
             {
+                // RESOLVER ALIANZA SEGÚN LAS NUEVAS LISTAS Y ÁMBITO
+                await ResolverAlianzaAsync(candidato, nombreAlianza);
+
                 //valores antiguos
+                // si el candidato tiene alianza electoral en valores anteriores, se debe obtener el nombre de la alianza electoral
+                if (existente.AlianzaElectoralId.HasValue && existente.AlianzaElectoral == null)
+                    existente.AlianzaElectoral = await _candidatoRepository.ObtenerQueryAlianza()
+                        .Where(x => x.IdAlianzaElectoral == existente.AlianzaElectoralId.Value)
+                        .FirstOrDefaultAsync();
                 var valoresAnteriores = ObtenerValoresAuditoria(existente, eleccion);
                 // actualizar campos
                 existente.NombreCandidato = candidato.NombreCandidato.Trim();
@@ -410,6 +513,9 @@ namespace Votaciones.Application.Services.Votaciones
                 existente.CantonId = candidato.CantonId;
                 existente.ParroquiaId = candidato.ParroquiaId;
                 existente.Activo = candidato.Activo;
+                // Actualizar alianza electoral
+                existente.AlianzaElectoralId = candidato.AlianzaElectoralId;
+                existente.AlianzaElectoral = candidato.AlianzaElectoral;
 
                 // Eliminar las relaciones
                 if (existente.ListaCandidatos != null && existente.ListaCandidatos.Any())
@@ -563,11 +669,87 @@ namespace Votaciones.Application.Services.Votaciones
             return listas;
         }
 
+        private async Task ResolverAlianzaAsync(Candidato candidato, string? nombreAlianza = null)
+        
+        {
+            var listasSeleccionadas = candidato.ListaCandidatos.Select(x => x.ListaElectoralId).Distinct().ToList();
+
+            // Una sola lista: no necesita alianza.
+            if (listasSeleccionadas.Count <= 1)
+            {
+                candidato.AlianzaElectoralId = null;
+                candidato.AlianzaElectoral = null;
+                return;
+            }
+
+            // Buscar alianzas con la misma elección, zona y listas.
+            var alianzasDisponibles = await ObtenerAlianzasDisponiblesAsync(candidato.EleccionId, candidato.ProvinciaId, 
+                candidato.CantonId, candidato.ParroquiaId, listasSeleccionadas);
+
+            // Si existe una alianza, reutilizarla.
+            if (alianzasDisponibles.Count > 0)
+            {
+                var alianzaExistente = alianzasDisponibles.First();
+                candidato.AlianzaElectoralId = alianzaExistente.IdAlianzaElectoral;
+                //cnvertir a entidad de AlianzaElectoral 
+                candidato.AlianzaElectoral = new AlianzaElectoral
+                {
+                    IdAlianzaElectoral = alianzaExistente.IdAlianzaElectoral,
+                    NombreAlianza = alianzaExistente.NombreAlianza,
+                    EleccionId = candidato.EleccionId,
+                    ProvinciaId = candidato.ProvinciaId,
+                    CantonId = candidato.CantonId,
+                    ParroquiaId = candidato.ParroquiaId
+                };
+                return;
+            }
+
+            // Si no existe, solicitar el nombre para crearla.
+            if (string.IsNullOrWhiteSpace(nombreAlianza))
+                throw new InvalidOperationException("No existe una alianza para las listas seleccionadas. Debe ingresar el nombre de la nueva alianza.");
+
+            var nuevaAlianza = new AlianzaElectoral
+            {
+                IdAlianzaElectoral = Guid.NewGuid(),
+                NombreAlianza = nombreAlianza.Trim(),
+                EleccionId = candidato.EleccionId,
+                ProvinciaId = candidato.ProvinciaId,
+                CantonId = candidato.CantonId,
+                ParroquiaId = candidato.ParroquiaId
+            };
+            // Registrar las listas que conforman la alianza.
+            foreach (var listaId in listasSeleccionadas)
+            {
+                nuevaAlianza.AlianzaDetalles.Add(new AlianzaDetalle
+                {
+                    IdAlianzaDetalle = Guid.NewGuid(),
+                    AlianzaElectoralId = nuevaAlianza.IdAlianzaElectoral,
+                    ListaElectoralId = listaId,
+                    ListaAlianzaPrincipal = candidato.ListaCandidatos.First(x => x.ListaElectoralId == listaId).ListaPrincipal
+                });
+            }
+
+            var valoresNuevosAlianza = new Dictionary<string, object?>
+            { { "NombreAlianza", nuevaAlianza.NombreAlianza }, };
+            // registrar bitacora
+            await _bitacoraService.RegistrarBitacoraAsync("INSERT", "AlianzaElectoral", nuevaAlianza.IdAlianzaElectoral.ToString(),
+                $"Alianza electoral creada '{nuevaAlianza.NombreAlianza}'", nuevaAlianza.EleccionId, _currentService.UsuarioId, null,
+                valoresNuevosAlianza);
+
+            candidato.AlianzaElectoral = nuevaAlianza;
+            candidato.AlianzaElectoralId = nuevaAlianza.IdAlianzaElectoral;
+        }
+
         private Dictionary<string, object?> ObtenerValoresAuditoria(Candidato candidato, Eleccion eleccion)
         {
             var valores = BitacoraHelper.ObtenerValores(candidato, CamposAuditablesCandidato.Campos);
 
             BitacoraHelper.AgregarRelacion(valores, "Eleccion", eleccion.NombreEleccion);
+            //registrar relacion de alianza electoral si existe
+            if (candidato.AlianzaElectoral != null)
+            {
+                BitacoraHelper.AgregarRelacion(valores, "AlianzaElectoral", candidato.AlianzaElectoral.NombreAlianza);
+            }
             // agregar relaciones de provincia, canton y parroquia si existen
             if (candidato.ProvinciaId.HasValue)
             {
@@ -605,6 +787,11 @@ namespace Votaciones.Application.Services.Votaciones
 
             // Elección
             BitacoraHelper.AgregarRelacion(valores, "Eleccion", eleccion.NombreEleccion);
+            // Alianza Electoral si existe
+            if (candidatos.First().AlianzaElectoral != null)
+            {
+                BitacoraHelper.AgregarRelacion(valores, "AlianzaElectoral", candidatos.First().AlianzaElectoral!.NombreAlianza);
+            }
             // Provincia
             var provinciaId = candidatos.First().ProvinciaId;
             if (provinciaId.HasValue)
