@@ -120,6 +120,27 @@ namespace Votaciones.Application.Services.Votaciones
             if (acta == null)
                 return null;
 
+            // Completar información de alianzas para concejales
+            if (acta.TipoCandidato == TipoCandidato.ConcejalUrbano || 
+                acta.TipoCandidato == TipoCandidato.ConcejalRural)
+            {
+                // Reutilizamos el método existente
+                var candidatos = await ObtenerCandidatoListaPorTipoZonaAsync(acta.EleccionId, acta.TipoCandidato,
+                    acta.ProvinciaId, acta.CantonId, acta.ParroquiaId);
+                // Relacionamos por ListaElectoralId
+                var candidatosPorLista = candidatos.GroupBy(x => x.ListaElectoralId)
+                    .ToDictionary(x => x.Key, x => x.First());
+                // recorremos los detalles y completamos la información de alianza
+                foreach (var detalle in acta.ActasDetalle)
+                {
+                    if (candidatosPorLista.TryGetValue(detalle.ListaElectoralId, out var candidatoLista))
+                    {
+                        detalle.NombreAlianza = candidatoLista.NombreAlianza;
+                        detalle.NumerosListasAlianza = candidatoLista.NumerosListasAlianza;
+                    }
+                }
+            }
+            
             acta.ActasDetalle = acta.ActasDetalle
                 .OrderBy(x => x.NumeroLista)
                 .ThenBy(x => x.NombreCandidato)
@@ -174,8 +195,12 @@ namespace Votaciones.Application.Services.Votaciones
                     CandidatoId = null,
                     NombreCandidato = null,
                     ListaElectoralId = l.ListaElectoralId,
+                    NumeroLista = l.ListaElectoral!.NumeroLista,
                     NombreLista = l.ListaElectoral!.NombreLista,
-                    NumeroLista = l.ListaElectoral.NumeroLista,
+                    NombreAlianza = c.AlianzaElectoral != null ? c.AlianzaElectoral.NombreAlianza : null,
+                    NumerosListasAlianza = c.AlianzaElectoral != null ? c.AlianzaElectoral.AlianzaDetalles
+                        .OrderBy(a => a.ListaElectoral!.NumeroLista).Select(a => (int?)a.ListaElectoral!.NumeroLista)
+                        .ToList() : null,
                     Votos = 0
                 })).ToListAsync();
 
@@ -190,8 +215,12 @@ namespace Votaciones.Application.Services.Votaciones
                     CandidatoId = c.IdCandidato,
                     NombreCandidato = c.NombreCandidato,
                     ListaElectoralId = l.ListaElectoralId,
+                    NumeroLista = l.ListaElectoral!.NumeroLista,
                     NombreLista = l.ListaElectoral!.NombreLista,
-                    NumeroLista = l.ListaElectoral.NumeroLista,
+                    NombreAlianza = c.AlianzaElectoral != null ? c.AlianzaElectoral.NombreAlianza : null,
+                    NumerosListasAlianza = c.AlianzaElectoral != null ? c.AlianzaElectoral.AlianzaDetalles
+                        .OrderBy(a => a.ListaElectoral!.NumeroLista).Select(a => (int?)a.ListaElectoral!.NumeroLista)
+                        .ToList() : null,
                     Votos = 0
                 }))
                 .OrderBy(x => x.NumeroLista)

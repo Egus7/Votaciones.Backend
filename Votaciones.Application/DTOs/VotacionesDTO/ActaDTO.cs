@@ -1,4 +1,5 @@
-﻿using static Votaciones.Domain.Enums.EnumsEleccion;
+﻿using System.Text.Json.Serialization;
+using static Votaciones.Domain.Enums.EnumsEleccion;
 
 namespace Votaciones.Application.DTOs.VotacionesDTO
 {
@@ -19,6 +20,16 @@ namespace Votaciones.Application.DTOs.VotacionesDTO
         public int VotosBlancos { get; set; }
         public int VotosNulos { get; set; }
         public int TotalVotos { get; set; }
+        // Propiedades auxiliares para recuperar alianzas
+        [JsonIgnore]
+        public Guid EleccionId { get; set; }
+        [JsonIgnore]
+        public Guid? ProvinciaId { get; set; }
+        [JsonIgnore]
+        public Guid? CantonId { get; set; }
+        [JsonIgnore]
+        public Guid? ParroquiaId { get; set; }
+        // Detalle
         public List<ActaDetalleDTO> ActasDetalle { get; set; } = new List<ActaDetalleDTO>();
 
     }

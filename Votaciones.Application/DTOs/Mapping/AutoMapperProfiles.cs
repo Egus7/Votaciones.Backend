@@ -46,6 +46,11 @@ namespace Votaciones.Application.DTOs.Mapping
                 .ForMember(dest => dest.Parroquia, opt => opt.MapFrom(src => src.MesaElectoral!.Zona!.Parroquia!.NombreParroquia))
                 .ForMember(dest => dest.Canton, opt => opt.MapFrom(src => src.MesaElectoral!.Zona!.Parroquia!.Canton!.NombreCanton))
                 .ForMember(dest => dest.Provincia, opt => opt.MapFrom(src => src.MesaElectoral!.Zona!.Parroquia!.Canton!.Provincia!.NombreProvincia))
+                // Propiedades auxiliares para recuperar alianzas
+                .ForMember(dest => dest.EleccionId, opt => opt.MapFrom(src => src.EleccionId))
+                .ForMember(dest => dest.ProvinciaId, opt => opt.MapFrom(src => src.MesaElectoral!.Zona!.Parroquia!.Canton!.ProvinciaId))
+                .ForMember(dest => dest.CantonId, opt => opt.MapFrom(src => src.MesaElectoral!.Zona!.Parroquia!.CantonId))
+                .ForMember(dest => dest.ParroquiaId, opt => opt.MapFrom(src => src.MesaElectoral!.Zona!.ParroquiaId))
                 // Detalle
                 .ForMember(dest => dest.ActasDetalle, opt => opt.MapFrom(src => src.ActaDetalles)); // Detalles
 
@@ -53,7 +58,14 @@ namespace Votaciones.Application.DTOs.Mapping
             CreateMap<ActaDetalle, ActaDetalleDTO>()
                 .ForMember(dest => dest.NombreCandidato, opt => opt.MapFrom(src => src.Candidato!.NombreCandidato))
                 .ForMember(dest => dest.NombreLista, opt => opt.MapFrom(src => src.ListaElectoral!.NombreLista))
-                .ForMember(dest => dest.NumeroLista, opt => opt.MapFrom(src => src.ListaElectoral!.NumeroLista));
+                .ForMember(dest => dest.NumeroLista, opt => opt.MapFrom(src => src.ListaElectoral!.NumeroLista))
+                .ForMember(dest => dest.NombreAlianza, opt => 
+                    opt.MapFrom(src => src.Candidato != null && src.Candidato.AlianzaElectoral != null ? 
+                        src.Candidato.AlianzaElectoral.NombreAlianza: null))
+                .ForMember(dest => dest.NumerosListasAlianza, opt => 
+                    opt.MapFrom(src => src.Candidato != null && src.Candidato.AlianzaElectoral != null 
+                        ? src.Candidato.AlianzaElectoral.AlianzaDetalles.Select(a => (int?)a.ListaElectoral!.NumeroLista)
+                        .ToList() : null));
 
             //Usuario
             CreateMap<AdmUsuario, UsuarioDTO>()

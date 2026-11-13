@@ -227,8 +227,8 @@ namespace Votaciones.Application.Services.Votaciones
             hoja.Cell(6, 2).Value = asignacion.TotalEscanos;
 
             // Construir todos los cocientes.
-            var cocientes = new List<(int NumeroLista, string NombreLista, Guid ListaId, int Votos, int Divisor, 
-                decimal Cociente, int OrdenCandidato, string? NombreCandidato)>();
+            var cocientes = new List<(int NumeroLista, string NumerosLista, string NombreLista, Guid ListaId, int Votos, 
+                int Divisor, decimal Cociente, int OrdenCandidato, string? NombreCandidato)>();        
 
             foreach (var lista in asignacion.Listas.OrderBy(x => x.NumeroLista))
             {
@@ -247,8 +247,8 @@ namespace Votaciones.Application.Services.Votaciones
 
                     var candidato = candidatosOrdenados.ElementAtOrDefault(i - 1);
 
-                    cocientes.Add((lista.NumeroLista, lista.NombreLista, lista.ListaElectoralId, lista.Votos, divisor, 
-                        (decimal)lista.Votos / divisor, i, candidato?.NombreCandidato));
+                    cocientes.Add((lista.NumeroLista!, lista.NumerosLista!, lista.NombreLista, lista.ListaElectoralId, 
+                        lista.Votos, divisor, (decimal)lista.Votos / divisor, i, candidato?.NombreCandidato));
                 }
             }
 
@@ -258,10 +258,10 @@ namespace Votaciones.Application.Services.Votaciones
             // Tabla detallada: una fila por cada cociente calculado.
             int filaEncabezado = 8;
             hoja.Cell(filaEncabezado, 1).Value = "N.º Lista";
-            hoja.Cell(filaEncabezado, 2).Value = "Lista";
+            hoja.Cell(filaEncabezado, 2).Value = "Lista / Alianza";
             hoja.Cell(filaEncabezado, 3).Value = "Votos";
             hoja.Cell(filaEncabezado, 4).Value = "Divisor";
-            hoja.Cell(filaEncabezado, 5).Value = "Cociente";
+            hoja.Cell(filaEncabezado, 5).Value = "Voto por Candidato";
             hoja.Cell(filaEncabezado, 6).Value = "Orden global";
             hoja.Cell(filaEncabezado, 7).Value = "Candidato correspondiente";
             hoja.Cell(filaEncabezado, 8).Value = "Asignación del escaño";
@@ -275,7 +275,7 @@ namespace Votaciones.Application.Services.Votaciones
                 // Los primeros cinco cocientes reciben los escaños.
                 bool cocienteGanador = i < asignacion.TotalEscanos;
 
-                hoja.Cell(fila, 1).Value = item.NumeroLista;
+                hoja.Cell(fila, 1).Value = string.IsNullOrWhiteSpace(item.NumerosLista) ? item.NumeroLista.ToString() : item.NumerosLista;
                 hoja.Cell(fila, 2).Value = item.NombreLista;
                 hoja.Cell(fila, 3).Value = item.Votos;
                 hoja.Cell(fila, 4).Value = item.Divisor;
@@ -307,6 +307,8 @@ namespace Votaciones.Application.Services.Votaciones
                 hoja.Range(filaEncabezado + 1, 3, fila - 1, 4).Style.NumberFormat.Format = "#,##0";
                 hoja.Range(filaEncabezado + 1, 5, fila - 1, 5).Style.NumberFormat.Format = "#,##0.00";
             }
+            // Alinear a la derecha el N.º Lista
+            hoja.Range(filaEncabezado + 1, 1, fila - 1, 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
             // Bordes de la tabla.
             if (fila > filaEncabezado + 1)
             {
@@ -468,116 +470,104 @@ namespace Votaciones.Application.Services.Votaciones
             if (candidatoIds.Count == 0)
                 return;
 
-            var relaciones = await _candidatoRepository
-                .ObtenerQuery()
+            var relaciones = await _candidatoRepository.ObtenerQuery().AsNoTracking()
                 .Where(x => candidatoIds.Contains(x.IdCandidato))
-                .SelectMany(x => x.ListaCandidatos)
                 .Select(x => new
                 {
-                    x.CandidatoId,
-                    x.ListaElectoralId,
-                    x.ListaPrincipal,
-                    x.ListaElectoral!.NumeroLista,
-                    x.ListaElectoral.NombreLista
+                    CandidatoId = x.IdCandidato,        
+                    NombreAlianza = x.AlianzaElectoral != null ? x.AlianzaElectoral.NombreAlianza : null,
+                    Listas = x.ListaCandidatos.Select(l => new
+                    {
+                        l.ListaElectoralId,
+                        l.ListaPrincipal,
+                        l.ListaElectoral!.NumeroLista,
+                        l.ListaElectoral.NombreLista
+                    })
+                    .ToList(),
+                    NumerosAlianza = x.AlianzaElectoral != null ? x.AlianzaElectoral.AlianzaDetalles
+                    .Select(a => a.ListaElectoral!.NumeroLista).ToList() : null
                 })
                 .ToListAsync();
-
+            
             foreach (var resultado in resultados)
             {
                 if (!resultado.CandidatoId.HasValue)
                     continue;
 
-                var listas = relaciones
-                    .Where(x => x.CandidatoId == resultado.CandidatoId.Value)
-                    .GroupBy(x => x.ListaElectoralId)
-                    .Select(g => g.First())
-                    .OrderByDescending(x => x.ListaPrincipal)
-                    .ThenBy(x => x.NumeroLista)
-                    .ToList();
-
-                if (listas.Count == 0)
+                var candidato = relaciones.FirstOrDefault(x => x.CandidatoId == resultado.CandidatoId.Value);
+                if (candidato == null || candidato.Listas.Count == 0)
                     continue;
 
-                // Conservar la lista principal como identificador del resultado.
-                var listaPrincipal = listas.FirstOrDefault(x => x.ListaPrincipal) ?? listas.First();
-
+                var listaPrincipal = candidato.Listas.Where(x => x.ListaPrincipal)
+                    .OrderBy(x => x.NumeroLista)
+                    .FirstOrDefault() ?? candidato.Listas.OrderBy(x => x.NumeroLista).First();
+                
                 resultado.ListaElectoralId = listaPrincipal.ListaElectoralId;
                 resultado.NumeroLista = listaPrincipal.NumeroLista;
-                // Mostrar los números de todas las listas aliadas.
-                resultado.NumerosLista = string.Join(" - ", listas.Select(x => x.NumeroLista));
-                // Mostrar los nombres de todas las listas aliadas.
-                resultado.Lista = string.Join(" / ", listas
-                    .Select(x => x.NombreLista)
-                    .Where(x => !string.IsNullOrWhiteSpace(x))
-                    .Distinct());
+
+                if (!string.IsNullOrWhiteSpace(candidato.NombreAlianza))
+                {
+                    resultado.Lista = candidato.NombreAlianza;
+                    resultado.NumerosLista = string.Join(" - ", 
+                        (candidato.NumerosAlianza ?? new List<int>()).Distinct().OrderBy(n => n));
+                } 
+                else
+                {
+                    resultado.Lista = listaPrincipal.NombreLista;
+                    resultado.NumerosLista = listaPrincipal.NumeroLista.ToString();
+                }
             }
         }
 
         private async Task CompletarAlianzasPorListaAsync(List<ResultadoDetalleDTO> resultados)
         {
-            var listaIds = resultados
-                .Select(x => x.ListaElectoralId)
-                .Distinct()
-                .ToList();
+            var listaIds = resultados.Select(x => x.ListaElectoralId).Distinct().ToList();
 
             if (listaIds.Count == 0)
                 return;
 
-            var relaciones = await _candidatoRepository
-                .ObtenerQuery()
-                .SelectMany(x => x.ListaCandidatos)
-                .Select(x => new
+            var relaciones = await _candidatoRepository.ObtenerQuery().AsNoTracking()
+                .Where(c => c.ListaCandidatos.Any(lc => listaIds.Contains(lc.ListaElectoralId)))
+                .SelectMany(c => c.ListaCandidatos.Where(lc => listaIds.Contains(lc.ListaElectoralId))
+                .Select(lc => new
                 {
-                    x.CandidatoId,
-                    x.ListaElectoralId,
-                    x.ListaPrincipal,
-                    x.ListaElectoral!.NumeroLista,
-                    x.ListaElectoral.NombreLista
-                })
-                .ToListAsync();
-
-            // Obtener las listas asociadas a cada candidato.
-            var listasPorCandidato = relaciones
-                .GroupBy(x => x.CandidatoId)
-                .ToList();
-
-            // Para cada lista, identificar las listas aliadas a través de los candidatos relacionados.
-            var alianzasPorLista = listasPorCandidato
-                .Where(g => g.Select(x => x.ListaElectoralId).Distinct().Count() > 1)
-                .SelectMany(g =>
-                {
-                    var listas = g
-                        .GroupBy(x => x.ListaElectoralId)
-                        .Select(x => x.First())
-                        .ToList();
-
-                    return listas.Select(lista => new
+                    lc.ListaElectoralId,
+                    lc.ListaPrincipal,
+                    NumeroLista = lc.ListaElectoral!.NumeroLista,
+                    NombreLista = lc.ListaElectoral.NombreLista,
+                    NombreAlianza = c.AlianzaElectoral != null ? c.AlianzaElectoral.NombreAlianza : null,
+                    ListasAlianza = c.AlianzaElectoral != null ? c.AlianzaElectoral.AlianzaDetalles
+                    .Select(a => new
                     {
-                        ListaOrigenId = lista.ListaElectoralId,
-                        ListasAliadas = listas
-                    });
-                })
-                .GroupBy(x => x.ListaOrigenId)
-                .ToDictionary(g => g.Key, g => g.SelectMany(x => x.ListasAliadas)
-                .GroupBy(x => x.ListaElectoralId)
-                .Select(x => x.First())
-                .OrderByDescending(x => x.ListaPrincipal)
-                .ThenBy(x => x.NumeroLista)
-                .ToList());
+                        a.ListaElectoralId,
+                        Numero = a.ListaElectoral!.NumeroLista,
+                        Nombre = a.ListaElectoral.NombreLista
+                    })
+                    .ToList() : null
+                }))
+                .ToListAsync();
 
             foreach (var resultado in resultados)
             {
-                if (!alianzasPorLista.TryGetValue(resultado.ListaElectoralId, out var listasAlianza))
-                {
+                var relacion = relaciones.FirstOrDefault(x => x.ListaElectoralId == resultado.ListaElectoralId);
+                if (relacion == null)
                     continue;
+
+                resultado.NumeroLista = relacion.NumeroLista;
+
+                if (!string.IsNullOrWhiteSpace(relacion.NombreAlianza))
+                {
+                    var listas = (relacion.ListasAlianza ?? []).GroupBy(x => x.ListaElectoralId)
+                        .Select(g => g.First()).OrderBy(x => x.Numero).ToList();
+
+                    resultado.Lista = relacion.NombreAlianza;
+                    resultado.NumerosLista = string.Join(" - ", listas.Select(x => x.Numero));
                 }
-
-                resultado.NumerosLista = string.Join(" - ", listasAlianza.Select(x => x.NumeroLista));
-
-                resultado.Lista = string.Join(" / ", listasAlianza
-                    .Select(x => x.NombreLista)
-                    .Where(x => !string.IsNullOrWhiteSpace(x))
-                    .Distinct());
+                else
+                {
+                    resultado.Lista = relacion.NombreLista;
+                    resultado.NumerosLista = relacion.NumeroLista.ToString();
+                }
             }
         }
 
