@@ -68,5 +68,12 @@ namespace Votaciones.Infrastructure.Persistence.Repositories
             await _context.ActasEleccion.AddAsync(acta);
         }
 
+        public async Task<(int Actas, int Detalles)> EliminarTodasAsync()
+        {
+            var detalles = await _context.ActasDetalle.ExecuteDeleteAsync();
+            var actas = await _context.ActasEleccion.ExecuteDeleteAsync();
+            return (actas, detalles);
+        }
+
     }
 }

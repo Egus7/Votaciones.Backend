@@ -28,16 +28,25 @@ namespace Votaciones.Application.Services.Votaciones
         private readonly IMapper _mapper;
         private readonly IUnitOfWork _unitOfWork;
         private readonly ICurrentService _currentService;
+        private readonly IUsuarioRepository _usuarioRepository;
+        private readonly IBitacoraRepository _bitacoraRepository;
+        private readonly IPasswordHasher _passwordHasher;
         //signal
         private readonly IResultadosNotificacion _resultadosNotificacion;
         //bitacora
         private string tabla = "ActaEleccion";
+        // Único rol autorizado para eliminar las actas de prueba
+        private const string RolAdministrador = "Administrador";
 
         public ActaService(IActaRepository actaRepository, IMesaElectoralRepository mesaElectoralRepository, IEleccionRepository eleccionRepository,
                 IListaElectoralRepository listaElectoralRepository, ICandidatoRepository candidatoRepository, IZonaRepository zonaRepository,
-                IBitacoraService bitacoraService, IMapper mapper, IUnitOfWork unitOfWork, ICurrentService currentService, 
-                IResultadosNotificacion resultadosNotificacion)
+                IBitacoraService bitacoraService, IMapper mapper, IUnitOfWork unitOfWork, ICurrentService currentService,
+                IResultadosNotificacion resultadosNotificacion, IUsuarioRepository usuarioRepository, IBitacoraRepository bitacoraRepository,
+                IPasswordHasher passwordHasher)
         {
+            _usuarioRepository = usuarioRepository;
+            _bitacoraRepository = bitacoraRepository;
+            _passwordHasher = passwordHasher;
             _actaRepository = actaRepository;
             _mesaElectoralRepository = mesaElectoralRepository;
             _eleccionRepository = eleccionRepository;
@@ -610,6 +619,64 @@ namespace Votaciones.Application.Services.Votaciones
         }
 
         #region Metodos privados
+        public async Task<string> EliminarActasPruebaAsync(string password)
+        {
+            // Solo un administrador activo, confirmando su contraseña, puede eliminar las actas de prueba.
+            // Se usan errores 400 (no 401) para que el frontend no cierre la sesión si la contraseña es incorrecta.
+            if (string.IsNullOrWhiteSpace(password))
+                throw new ArgumentException("Debe ingresar su contraseña para confirmar la eliminación.");
+
+            var usuarioId = _currentService.UsuarioId
+                ?? throw new InvalidOperationException("No se pudo identificar al usuario.");
+            var usuario = await _usuarioRepository.ObtenerPorIdAsync(usuarioId);
+            if (usuario == null || !usuario.Estado)
+                throw new InvalidOperationException("El usuario no existe o se encuentra inactivo.");
+            if (usuario.Rol == null || !usuario.Rol.Activo ||
+                !string.Equals(usuario.Rol.NombreRol, RolAdministrador, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Solo un usuario con rol Administrador puede eliminar las actas de prueba.");
+            if (!_passwordHasher.Verify(password, usuario.Password))
+                throw new ArgumentException("La contraseña es incorrecta.");
+
+            // Actas a eliminar y mesas que se deben reabrir
+            var actas = await _actaRepository.ObtenerQuery()
+                .Select(x => new { x.IdActa, x.MesaElectoralId })
+                .ToListAsync();
+            if (actas.Count == 0)
+                throw new InvalidOperationException("No existen actas registradas para eliminar.");
+
+            await _unitOfWork.BeginTransactionAsync();
+            try
+            {
+                var mesasReabiertas = await _mesaElectoralRepository.ReabrirMesasAsync(actas.Select(x => x.MesaElectoralId).Distinct());
+                // Bitácora de las actas eliminadas (son datos de prueba)
+                var bitacorasEliminadas = await _bitacoraRepository.EliminarPorRegistrosAsync(tabla,
+                    actas.Select(x => x.IdActa.ToString()));
+                var eliminadas = await _actaRepository.EliminarTodasAsync();
+
+                // Se deja un único registro de auditoría de la eliminación
+                var valores = new Dictionary<string, object?>
+                {
+                    ["ActasEliminadas"] = eliminadas.Actas,
+                    ["DetallesEliminados"] = eliminadas.Detalles,
+                    ["MesasReabiertas"] = mesasReabiertas,
+                    ["RegistrosBitacoraEliminados"] = bitacorasEliminadas,
+                };
+                await _bitacoraService.RegistrarBitacoraAsync("DELETE", tabla, null,
+                    $"Se eliminaron {eliminadas.Actas} actas de prueba y se reabrieron {mesasReabiertas} mesas.", null,
+                    usuarioId, null, valores);
+
+                await _unitOfWork.SaveChangesAsync();
+                await _unitOfWork.CommitTransactionAsync();
+
+                return $"Se eliminaron {eliminadas.Actas} actas de prueba y se reabrieron {mesasReabiertas} mesas.";
+            }
+            catch
+            {
+                await _unitOfWork.RollbackTransactionAsync();
+                throw;
+            }
+        }
+
         private async Task<Dictionary<string, object?>> ObtenerValoresAuditoria(ActaEleccion acta, Eleccion eleccion, MesaElectoral mesa)
         {
             var valores = BitacoraHelper.ObtenerValores(acta, CamposAuditablesActa.Campos);

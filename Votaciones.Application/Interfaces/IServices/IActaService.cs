@@ -16,5 +16,6 @@ namespace Votaciones.Application.Interfaces.IServices
         Task<ActaEleccion> CrearAsync(ActaEleccion acta);
         Task<ActaEleccion> ActualizarAsync(Guid id, ActaEleccion acta);
         Task<ActaEleccion> CambiarEstadoAsync(Guid id, EstadoActa nuevoEstado);
+        Task<string> EliminarActasPruebaAsync(string password);
     }
 }

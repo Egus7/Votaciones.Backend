@@ -7,6 +7,7 @@ namespace Votaciones.Domain.Interfaces.IRepositories
         IQueryable<AdmBitacora> ObtenerQuery();
         Task<List<AdmBitacora>> ObtenerPorRegistroAsync(string tabla, string idRegistro);
         Task AgregarAsync(AdmBitacora bitacora);
+        Task<int> EliminarPorRegistrosAsync(string tabla, IEnumerable<string> idsRegistro);
 
     }
 }

@@ -61,5 +61,13 @@ namespace Votaciones.Infrastructure.Persistence.Repositories
             await _context.MesasElectorales.AddAsync(mesaElectoral);
         }
 
+        public async Task<int> ReabrirMesasAsync(IEnumerable<Guid> mesasIds)
+        {
+            var ids = mesasIds.ToList();
+            return await _context.MesasElectorales
+                .Where(m => ids.Contains(m.IdMesaElectoral) && !m.Activa)
+                .ExecuteUpdateAsync(s => s.SetProperty(m => m.Activa, true));
+        }
+
     }
 }

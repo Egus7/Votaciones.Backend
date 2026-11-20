@@ -98,5 +98,15 @@ namespace Votaciones.Api.Controllers
             return Ok("Estado del acta actualizado correctamente.");
         }
 
+        // POST: api/Actas/eliminar-pruebas
+        // Elimina todas las actas de prueba. El servicio valida el rol Administrador y la contraseña.
+        [HttpPost("eliminar-pruebas")]
+        public async Task<IActionResult> EliminarActasPrueba(EliminarActasPruebaDTO dto)
+        {
+            var resultado = await _actaService.EliminarActasPruebaAsync(dto.Password);
+
+            return Ok(resultado);
+        }
+
     }
 }

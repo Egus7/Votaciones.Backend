@@ -11,5 +11,7 @@ namespace Votaciones.Domain.Interfaces.IRepositories
         Task<MesaElectoral?> ObtenerPorCodigoMesaByEleccionAsync(string codigoMesa, Guid eleccionId, Guid zonaId, Guid? idMesaExcluir = null);
         Task<Zona?> ObtenerZonaAsync(Guid zonaId);
         Task AgregarAsync(MesaElectoral mesaElectoral);
+        // Vuelve a activar las mesas indicadas que estén cerradas. Devuelve la cantidad de mesas reabiertas.
+        Task<int> ReabrirMesasAsync(IEnumerable<Guid> mesasIds);
     }
 }

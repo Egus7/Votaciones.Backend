@@ -31,5 +31,13 @@ namespace Votaciones.Infrastructure.Persistence.Repositories
             await _context.Bitacora.AddAsync(bitacora);
         }
 
+        public async Task<int> EliminarPorRegistrosAsync(string tabla, IEnumerable<string> idsRegistro)
+        {
+            var ids = idsRegistro.ToList();
+            return await _context.Bitacora
+                .Where(x => x.Tabla == tabla && x.IdRegistro != null && ids.Contains(x.IdRegistro))
+                .ExecuteDeleteAsync();
+        }
+
     }
 }

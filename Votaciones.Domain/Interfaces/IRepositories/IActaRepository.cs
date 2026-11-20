@@ -12,5 +12,7 @@ namespace Votaciones.Domain.Interfaces.IRepositories
         Task<bool> ExistePorListaYAmbitoAsync(Guid eleccionId, Guid listaElectoralId, TipoCandidato tipoCandidato, Guid? provinciaId, 
             Guid? cantonId, Guid? parroquiaId);
         Task AgregarAsync(ActaEleccion acta);
+        // Elimina todas las actas (cabecera y detalle). Devuelve la cantidad de actas y detalles eliminados.
+        Task<(int Actas, int Detalles)> EliminarTodasAsync();
     }
 }
