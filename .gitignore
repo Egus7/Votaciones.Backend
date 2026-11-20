@@ -7,3 +7,9 @@ credenciales.txt
 .vs/
 bin/
 obj/
+
+# Migración a Supabase (datos y contraseñas temporales)
+supabase/.credenciales-temporales.txt
+supabase/migracion-datos/exportado/
+supabase/migracion-datos/datos.sql
+supabase/migracion-datos/node_modules/

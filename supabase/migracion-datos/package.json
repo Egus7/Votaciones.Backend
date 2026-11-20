@@ -1,0 +1,9 @@
+{
+  "name": "votaciones-migracion-datos",
+  "private": true,
+  "type": "module",
+  "description": "Scripts para copiar los datos de SQL Server a Supabase",
+  "dependencies": {
+    "bcryptjs": "^3.0.2"
+  }
+}
